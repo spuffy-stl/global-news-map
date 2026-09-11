@@ -1,0 +1,104 @@
+:root {
+  --bg: #0b1220;
+  --panel: #101c33;
+  --card: #0d1830;
+  --ink: #e8eef7;
+  --muted: #8fa1bd;
+  --faint: #6b7f9e;
+  --accent: #38bdf8;
+  --line: #1e2c47;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+}
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; background: var(--bg); z-index: 10;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand h1 { font-size: 18px; margin: 0; font-weight: 650; }
+.globe { font-size: 22px; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.updated { font-size: 12.5px; color: var(--muted); }
+.btn {
+  background: var(--accent); color: #04202f; border: none; border-radius: 8px;
+  padding: 8px 14px; font-size: 13.5px; font-weight: 650; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn.ghost { background: transparent; color: var(--muted); padding: 6px 10px; }
+.btn.ghost:hover { color: var(--ink); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 370px; align-items: start; }
+.map-col { min-width: 0; }
+.map-wrap { padding: 8px 8px 0; }
+#map { width: 100%; height: auto; display: block; }
+.ocean { fill: #0e1a2e; }
+.graticule { fill: none; stroke: #16263f; stroke-width: 0.5; }
+.country { fill: #22344f; stroke: #0b1220; stroke-width: 0.6; }
+.country:hover { fill: #2c4265; }
+.marker { cursor: pointer; outline: none; }
+.marker .dot { fill: var(--accent); stroke: #fff; stroke-width: 1.5; }
+.marker.active .dot { fill: #fbbf24; }
+.marker .pulse {
+  fill: none; stroke: var(--accent); stroke-width: 1.5;
+  transform-box: fill-box; transform-origin: center;
+  animation: pulse 2.2s ease-out infinite;
+}
+.marker.active .pulse { stroke: #fbbf24; }
+@keyframes pulse {
+  0% { transform: scale(0.55); opacity: 0.8; }
+  70% { transform: scale(1.7); opacity: 0; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+.marker .label {
+  fill: #cfe3fa; font-size: 12px; text-anchor: middle; pointer-events: none;
+  paint-order: stroke; stroke: #0b1220; stroke-width: 3px;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px 20px; }
+.chip {
+  background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 999px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip.active { background: var(--accent); color: #04202f; border-color: var(--accent); font-weight: 650; }
+
+.panel {
+  border-left: 1px solid var(--line); background: var(--panel);
+  padding: 16px; min-height: calc(100vh - 58px);
+  position: sticky; top: 58px; max-height: calc(100vh - 58px); overflow-y: auto;
+}
+.panel-head { display: flex; justify-content: space-between; align-items: center; }
+.panel-head h2 { margin: 0; font-size: 17px; }
+.panel-meta { font-size: 12.5px; color: var(--muted); margin: 6px 0 12px; }
+.hint { color: var(--muted); font-size: 14px; line-height: 1.5; }
+.story {
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 12px; background: var(--card);
+}
+.story h3 { margin: 0 0 6px; font-size: 15px; line-height: 1.35; }
+.story h3 a { color: var(--ink); text-decoration: none; }
+.story h3 a:hover { color: var(--accent); text-decoration: underline; }
+.story p {
+  margin: 0 0 8px; color: var(--muted); font-size: 13.5px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.story .meta { font-size: 12px; color: var(--faint); display: flex; gap: 8px; flex-wrap: wrap; }
+.story .meta a { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .panel {
+    border-left: none; border-top: 1px solid var(--line);
+    position: static; max-height: none; min-height: 0;
+  }
+  .marker .label { font-size: 10px; }
+  .updated { display: none; }
+}

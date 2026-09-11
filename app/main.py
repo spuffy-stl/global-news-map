@@ -1,0 +1,82 @@
+"""FastAPI app: serves the map UI and the headlines JSON API."""
+import logging
+import os
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from . import config, crawler, db
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("global-news-map")
+
+scheduler = AsyncIOScheduler(timezone="UTC")
+
+REGION_SLUGS = {r["slug"] for r in config.REGIONS}
+
+
+def run_crawl():
+    try:
+        crawler.crawl_all_regions()
+    except Exception:
+        log.exception("crawl failed")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    db.init_db()
+    scheduler.add_job(
+        run_crawl, "interval", hours=config.CRAWL_INTERVAL_HOURS,
+        id="hourly_crawl", replace_existing=True, max_instances=1,
+    )
+    # Crawl once on startup so the map has headlines immediately.
+    scheduler.add_job(
+        run_crawl, "date", run_date=datetime.now(timezone.utc),
+        id="startup_crawl", replace_existing=True, max_instances=1,
+    )
+    scheduler.start()
+    log.info("scheduler started; crawl interval %sh", config.CRAWL_INTERVAL_HOURS)
+    yield
+    scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="Global News Map", lifespan=lifespan)
+
+STATIC_DIR = os.path.join(config.APP_DIR, "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/")
+def index():
+    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+
+
+@app.get("/api/regions")
+def list_regions():
+    return config.REGIONS
+
+
+@app.get("/api/headlines")
+def get_headlines(region: str = Query(...), limit: int = Query(10, ge=1, le=50)):
+    if region not in REGION_SLUGS:
+        raise HTTPException(status_code=404, detail="unknown region")
+    return db.get_headlines(region, limit)
+
+
+@app.get("/api/status")
+def get_status():
+    return {
+        "regions": db.get_status(),
+        "crawl_interval_hours": config.CRAWL_INTERVAL_HOURS,
+        "server_time": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.post("/api/refresh")
+def trigger_refresh(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_crawl)
+    return {"status": "refresh started"}

@@ -1,0 +1,5 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+apscheduler>=3.10
+feedparser>=6.0.3
+requests>=2.32

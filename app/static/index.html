@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Global News Map</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="globe" aria-hidden="true">🌐</span><h1>Global News Map</h1></div>
+  <div class="topbar-right">
+    <span id="updated" class="updated">loading…</span>
+    <button id="refreshBtn" class="btn" type="button">⟳ Refresh</button>
+  </div>
+</header>
+<main class="layout">
+  <section class="map-col">
+    <div class="map-wrap">
+      <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map with news region markers"></svg>
+    </div>
+    <div id="chips" class="chips" aria-label="Regions"></div>
+  </section>
+  <aside id="panel" class="panel" aria-live="polite">
+    <div class="panel-head">
+      <h2 id="panelTitle">Top stories</h2>
+      <button id="panelClose" class="btn ghost" type="button" aria-label="Clear selection">✕</button>
+    </div>
+    <div id="panelMeta" class="panel-meta"></div>
+    <div id="stories" class="stories">
+      <p class="hint">Select a region on the map to see its top headlines.</p>
+    </div>
+  </aside>
+</main>
+<script src="/static/vendor/d3.min.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
