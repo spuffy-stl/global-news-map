@@ -1,0 +1,10 @@
+# Caddy terminates TLS for the public domain (Let's Encrypt, auto-renewed)
+# and reverse-proxies to the app container over the internal docker network.
+globalnewsmap.net, www.globalnewsmap.net {
+	reverse_proxy newsmap:8000
+}
+
+# Anything else on port 80 (raw VM IP, health checks) goes straight to the app.
+:80 {
+	reverse_proxy newsmap:8000
+}
