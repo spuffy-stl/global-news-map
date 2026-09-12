@@ -41,3 +41,7 @@ REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))
 USER_AGENT = os.environ.get(
     "USER_AGENT", "GlobalNewsMap/1.0 (world news map aggregator)"
 )
+
+# Google Analytics 4 measurement ID, e.g. "G-XXXXXXXXXX".
+# When empty, no analytics snippet is injected and the page stays fully self-contained.
+GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID", "").strip()

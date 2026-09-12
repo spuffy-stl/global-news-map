@@ -47,6 +47,7 @@ Environment variables:
 | `PORT` | `8000` | HTTP port (set automatically by Render/Railway) |
 | `DATA_DIR` | `<repo>/data` | Directory for the SQLite database |
 | `CRAWL_INTERVAL_HOURS` | `1` | Hours between scheduled crawls |
+| `GA_MEASUREMENT_ID` | *(empty)* | Google Analytics 4 measurement ID (e.g. `G-XXXXXXXXXX`). When set, the GA4 `gtag.js` snippet is injected into the page and these events are tracked: `select_region` (with `region`), `click_story` (with `region` and `source`), `refresh_headlines`. When empty, no analytics code is loaded at all. |
 
 ## Run with Docker
 

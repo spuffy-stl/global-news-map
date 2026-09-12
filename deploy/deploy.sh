@@ -11,6 +11,7 @@ docker rm -f newsmap || true
 docker run -d --name newsmap --restart unless-stopped \
   -p 80:8000 \
   -v /opt/news-data:/srv/data \
+  -e "GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}" \
   newsmap
 
 echo "newsmap redeployed: $(date -u +%FT%TZ)"

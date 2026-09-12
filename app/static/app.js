@@ -21,6 +21,14 @@
   var regions = [];
   var activeSlug = null;
 
+  // Analytics: best-effort. Only present when a GA4 measurement ID is configured
+  // server-side; never blocks the UI or throws if the tag hasn't loaded.
+  function trackEvent(name, params) {
+    try {
+      if (typeof window.gtag === "function") window.gtag("event", name, params || {});
+    } catch (e) { /* analytics is optional */ }
+  }
+
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -85,7 +93,7 @@
   function storyCard(s) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
     return (
-      '<article class="story">' +
+      '<article class="story" data-source="' + esc(s.source || "") + '">' +
         '<h3><a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
@@ -99,6 +107,7 @@
     activeSlug = slug;
     markActive();
     var region = regions.find(function (r) { return r.slug === slug; });
+    trackEvent("select_region", { region: slug });
     panelTitle.textContent = region ? region.name : "Top stories";
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
     fetch("/api/headlines?region=" + encodeURIComponent(slug) + "&limit=12")
@@ -141,6 +150,7 @@
   refreshBtn.addEventListener("click", function () {
     refreshBtn.disabled = true;
     refreshBtn.textContent = "⟳ Refreshing…";
+    trackEvent("refresh_headlines");
     var before = null;
     refreshStatus().then(function (latest) {
       before = latest;
@@ -170,6 +180,17 @@
     panelTitle.textContent = "Top stories";
     panelMeta.textContent = "";
     storiesEl.innerHTML = '<p class="hint">Select a region on the map to see its top headlines.</p>';
+  });
+
+  // Track outbound story clicks (delegated; story cards are re-rendered).
+  storiesEl.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest ? e.target.closest("a") : null;
+    if (!a || !storiesEl.contains(a)) return;
+    var art = a.closest("article");
+    trackEvent("click_story", {
+      region: activeSlug || "",
+      source: art ? art.getAttribute("data-source") || "" : "",
+    });
   });
 
   Promise.all([

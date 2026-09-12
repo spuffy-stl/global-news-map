@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, crawler, db
@@ -49,10 +49,36 @@ app = FastAPI(title="Global News Map", lifespan=lifespan)
 STATIC_DIR = os.path.join(config.APP_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as f:
+    INDEX_HTML = f.read()
+
+GA4_PLACEHOLDER = "<!--GA4-->"
+
+
+def ga4_snippet(measurement_id):
+    """Google tag (gtag.js) snippet. Only loaded when a measurement ID is set."""
+    return (
+        '<script async src="https://www.googletagmanager.com/gtag/js?id='
+        + measurement_id
+        + '"></script>\n'
+        '<script>\n'
+        "window.dataLayer = window.dataLayer || [];\n"
+        "function gtag(){dataLayer.push(arguments);}\n"
+        "gtag('js', new Date());\n"
+        "gtag('config', '" + measurement_id + "');\n"
+        "</script>"
+    )
+
 
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+    # Inject the GA4 snippet only when a measurement ID is configured;
+    # otherwise the page loads with zero third-party requests.
+    html = INDEX_HTML.replace(
+        GA4_PLACEHOLDER,
+        ga4_snippet(config.GA_MEASUREMENT_ID) if config.GA_MEASUREMENT_ID else "",
+    )
+    return HTMLResponse(html)
 
 
 @app.get("/api/regions")
