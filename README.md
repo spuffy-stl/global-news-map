@@ -18,7 +18,7 @@ because a third-party tile layer failed.
 
 - **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (hourly crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing)
 - **Map** — [D3.js](https://d3js.org/) v7.9.0 (vendored) + [Natural Earth](https://www.naturalearthdata.com/) 110m admin-0 GeoJSON (vendored)
-- **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set)
+- **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set); daily reporting via the [Analytics Data API](https://developers.google.com/analytics/devguides/reporting/data/v1) — `analytics/ga_report.py` ([google-auth](https://github.com/googleapis/google-auth-library-python), GCP service account with Viewer access on the property)
 - **Infra** — [Docker](https://www.docker.com/), [Google Cloud](https://cloud.google.com/) (e2-micro VM, static IP), [GitHub Actions](https://github.com/features/actions) (auto-deploy on push to `main`)
 
 ## News sources (public RSS feeds)
