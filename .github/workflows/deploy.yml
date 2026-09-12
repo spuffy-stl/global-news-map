@@ -19,7 +19,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
             deployer@${{ secrets.DEPLOY_HOST }} \
-            "sudo git -C /opt/news-app fetch origin && sudo git -C /opt/news-app reset --hard origin/main && sudo bash /opt/news-app/deploy/deploy.sh"
+            "sudo git -C /opt/news-app fetch origin && sudo git -C /opt/news-app reset --hard origin/main && sudo GA_MEASUREMENT_ID='${{ vars.GA_MEASUREMENT_ID }}' bash /opt/news-app/deploy/deploy.sh"
 
       - name: Health check
         run: |
