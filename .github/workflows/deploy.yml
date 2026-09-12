@@ -1,0 +1,36 @@
+name: Deploy to GCP
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VM
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes \
+            deployer@${{ secrets.DEPLOY_HOST }} \
+            "sudo git -C /opt/news-app fetch origin && sudo git -C /opt/news-app reset --hard origin/main && sudo bash /opt/news-app/deploy/deploy.sh"
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 12); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://${{ secrets.DEPLOY_HOST }}/api/status || true)
+            echo "try $i: http=$CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "deploy healthy"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "deploy health check failed"
+          exit 1
