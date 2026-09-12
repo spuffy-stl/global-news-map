@@ -6,6 +6,32 @@ Natural Earth GeoJSON** with **bundled D3.js** — there are no external map
 tile servers or runtime CDN dependencies, so the map can never go blank
 because a third-party tile layer failed.
 
+## Links
+
+| | |
+| --- | --- |
+| 🌍 Live site | http://136.69.140.76 |
+| 📊 Google Analytics | [analytics.google.com](https://analytics.google.com/) — property **Global News Map** (`G-E1LGTHLXZ0`) |
+| 💻 GitHub repo | [spuffy-stl/global-news-map](https://github.com/spuffy-stl/global-news-map) |
+
+## Built with
+
+- **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (hourly crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing)
+- **Map** — [D3.js](https://d3js.org/) v7.9.0 (vendored) + [Natural Earth](https://www.naturalearthdata.com/) 110m admin-0 GeoJSON (vendored)
+- **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set)
+- **Infra** — [Docker](https://www.docker.com/), [Google Cloud](https://cloud.google.com/) (e2-micro VM, static IP), [GitHub Actions](https://github.com/features/actions) (auto-deploy on push to `main`)
+
+## News sources (public RSS feeds)
+
+| Region | Feeds |
+| ------ | ----- |
+| North America | [NPR](https://www.npr.org/), [CBC](https://www.cbc.ca/) |
+| Latin America | [BBC Latin America](https://www.bbc.com/news/world/latin_america), [France 24 Americas](https://www.france24.com/en/americas/) |
+| Europe | [BBC Europe](https://www.bbc.com/news/world/europe), [DW Europe](https://www.dw.com/en/europe/s-1433) |
+| Africa | [BBC Africa](https://www.bbc.com/news/world/africa), [France 24 Africa](https://www.france24.com/en/africa/) |
+| Middle East | [BBC Middle East](https://www.bbc.com/news/world/middle_east), [Al Jazeera](https://www.aljazeera.com/) |
+| Asia-Pacific | [BBC Asia](https://www.bbc.com/news/world/asia), [ABC News Australia](https://www.abc.net.au/news/) |
+
 ## How it works
 
 - **Backend** — Python FastAPI serves the single-page frontend and a JSON API.
