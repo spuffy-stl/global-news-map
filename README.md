@@ -10,7 +10,7 @@ because a third-party tile layer failed.
 
 | | |
 | --- | --- |
-| 🌍 Live site | http://136.69.140.76 |
+| 🌍 Live site | https://globalnewsmap.net |
 | 📊 Google Analytics | [analytics.google.com](https://analytics.google.com/) — property **Global News Map** (`G-E1LGTHLXZ0`) |
 | 💻 GitHub repo | [spuffy-stl/global-news-map](https://github.com/spuffy-stl/global-news-map) |
 
@@ -20,6 +20,7 @@ because a third-party tile layer failed.
 - **Map** — [D3.js](https://d3js.org/) v7.9.0 (vendored) + [Natural Earth](https://www.naturalearthdata.com/) 110m admin-0 GeoJSON (vendored)
 - **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set); daily reporting via the [Analytics Data API](https://developers.google.com/analytics/devguides/reporting/data/v1) — `analytics/ga_report.py` ([google-auth](https://github.com/googleapis/google-auth-library-python), GCP service account with Viewer access on the property)
 - **Infra** — [Docker](https://www.docker.com/), [Google Cloud](https://cloud.google.com/) (e2-micro VM, static IP), [GitHub Actions](https://github.com/features/actions) (auto-deploy on push to `main`)
+- **Domain & TLS** — [Cloudflare](https://www.cloudflare.com/) (Registrar for `globalnewsmap.net`, DNS, CDN/proxy, Universal SSL edge cert), [Caddy](https://caddyserver.com/) on the VM (reverse proxy, automatic [Let's Encrypt](https://letsencrypt.org/) certs with auto-renewal)
 
 ## News sources (public RSS feeds)
 
