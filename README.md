@@ -46,7 +46,9 @@ because a third-party tile layer failed.
   Headlines are deduped by URL and pruned to the latest 60 per region.
 - **Frontend** — Dark-themed, mobile-friendly map UI. Region markers are
   clickable and open a headlines panel with title, summary, source link and
-  timestamp.
+  timestamp. Zoom in (scroll/pinch) past 2.2× and country-level markers fade
+  in: headlines are attributed to countries by keyword matching on
+  title + summary, so denser news areas reveal more dots as you zoom.
 
 ## API
 
