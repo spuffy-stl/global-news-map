@@ -33,6 +33,25 @@
   var countryIndex = {};       // ADMIN -> { stories: [...], regionSlug }
   var mapZoom = null;
 
+  // Region color system: one distinctive hue per region. Markers, chips and
+  // glows all draw from here so the map reads as one coherent design.
+  var REGION_COLORS = {
+    "north-america": { c: "#60a5fa", dark: "#1e40af" },
+    "latin-america": { c: "#34d399", dark: "#065f46" },
+    "europe":        { c: "#a78bfa", dark: "#5b21b6" },
+    "africa":        { c: "#fbbf24", dark: "#b45309" },
+    "middle-east":   { c: "#fb7185", dark: "#9f1239" },
+    "asia-pacific":  { c: "#22d3ee", dark: "#0e7490" }
+  };
+  function regionColor(slug) {
+    var r = REGION_COLORS[slug];
+    return r ? r.c : "#38bdf8";
+  }
+  function hexToRgba(hex, a) {
+    var n = parseInt(hex.replace("#", ""), 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+
   // Analytics: best-effort. Only present when a GA4 measurement ID is configured
   // server-side; never blocks the UI or throws if the tag hasn't loaded.
   function trackEvent(name, params) {
@@ -299,6 +318,22 @@
   function drawMap(world) {
     worldFeatures = world.features;
 
+    // Gradient defs: ocean vignette + per-region "lit dot" gradients
+    // (white-hot core -> region color -> deep edge).
+    var defs = svg.append("defs");
+    var og = defs.append("radialGradient")
+      .attr("id", "oceanGrad").attr("cx", "50%").attr("cy", "42%").attr("r", "78%");
+    og.append("stop").attr("offset", "0%").attr("stop-color", "#172a4d");
+    og.append("stop").attr("offset", "100%").attr("stop-color", "#0a1426");
+    Object.keys(REGION_COLORS).forEach(function (slug) {
+      var rc = REGION_COLORS[slug];
+      var g = defs.append("radialGradient")
+        .attr("id", "dotg-" + slug).attr("cx", "38%").attr("cy", "32%").attr("r", "78%");
+      g.append("stop").attr("offset", "0%").attr("stop-color", "#ffffff");
+      g.append("stop").attr("offset", "38%").attr("stop-color", rc.c);
+      g.append("stop").attr("offset", "100%").attr("stop-color", rc.dark);
+    });
+
     var zl = svg.append("g").attr("class", "zoom-layer");
     zl.append("path").datum({ type: "Sphere" }).attr("class", "ocean").attr("d", path);
     zl.append("path").datum(d3.geoGraticule10()).attr("class", "graticule").attr("d", path);
@@ -319,10 +354,16 @@
       .attr("role", "button")
       .attr("aria-label", function (d) { return d.name; });
     m.append("g").attr("class", "zoom-fix");
+    m.style("filter", function (d) {
+      return "drop-shadow(0 0 7px " + hexToRgba(regionColor(d.slug), 0.75) + ")";
+    });
     var inner = m.select(".zoom-fix");
-    inner.append("circle").attr("r", 15).attr("class", "pulse");
-    inner.append("circle").attr("r", 6).attr("class", "dot");
-    inner.append("text").attr("y", -22).attr("class", "label").text(function (d) { return d.name; });
+    inner.append("circle").attr("r", 16).attr("class", "pulse")
+      .attr("stroke", function (d) { return regionColor(d.slug); });
+    inner.append("circle").attr("r", 10.5).attr("class", "halo");
+    inner.append("circle").attr("r", 6.5).attr("class", "dot")
+      .attr("fill", function (d) { return "url(#dotg-" + d.slug + ")"; });
+    inner.append("text").attr("y", -24).attr("class", "label").text(function (d) { return d.name; });
     onTap(m, function (d) { selectRegion(d.slug); });
     m.on("keydown", function (e, d) {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectRegion(d.slug); }
@@ -377,7 +418,9 @@
       .attr("aria-label", function (d) { return d.display; });
     enter.append("g").attr("class", "zoom-fix");
     var inner = enter.select(".zoom-fix");
-    inner.append("circle").attr("class", "cdot");
+    inner.append("circle").attr("class", "halo").attr("fill", "none");
+    inner.append("circle").attr("class", "cdot")
+      .attr("fill", function (d) { return "url(#dotg-" + d.regionSlug + ")"; });
     inner.append("title").text(function (d) { return d.display + " · " + d.stories.length + " stories"; });
     onTap(enter, function (d) { selectCountry(d); });
     enter.on("keydown", function (e, d) {
@@ -386,8 +429,13 @@
 
     var merged = enter.merge(sel);
     merged.attr("transform", function (d) { return "translate(" + d.xy + ")"; });
+    merged.style("filter", function (d) {
+      return "drop-shadow(0 0 5px " + hexToRgba(regionColor(d.regionSlug), 0.7) + ")";
+    });
     merged.select(".cdot")
       .attr("r", function (d) { return 4 + Math.min(7, Math.sqrt(d.stories.length) * 2); });
+    merged.select(".halo")
+      .attr("r", function (d) { return 4 + Math.min(7, Math.sqrt(d.stories.length) * 2) + 4.5; });
     merged.select("title")
       .text(function (d) { return d.display + " · " + d.stories.length + " stories"; });
     applyCounterScale();
@@ -409,6 +457,7 @@
       b.type = "button";
       b.className = "chip" + (r.slug === activeSlug ? " active" : "");
       b.textContent = r.name;
+      b.style.setProperty("--chip-color", regionColor(r.slug));
       b.addEventListener("click", function () { selectRegion(r.slug); });
       chipsEl.appendChild(b);
     });
