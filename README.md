@@ -113,3 +113,7 @@ docker run -p 8000:8000 -v $(pwd)/data:/srv/data global-news-map
   isolates feed failures so one dead feed can't break a crawl.
 - Vendored assets: `app/static/vendor/d3.min.js` (D3 v7.9.0) and
   `app/static/data/countries-110m.geojson` (Natural Earth 110m admin-0).
+- Static assets are served with a 4-hour cache. The index handler versions
+  the `app.js` script URL from the file's mtime at server startup
+  (`?v=<mtime>`), so every deploy produces a fresh URL and browsers pick up
+  new JS without needing a hard refresh.
