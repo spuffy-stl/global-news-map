@@ -1,3 +1,0 @@
-query($issueId: String!) {
-  issue(id: $issueId) { identifier state { name } }
-}
