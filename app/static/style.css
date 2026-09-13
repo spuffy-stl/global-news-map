@@ -37,8 +37,26 @@ body {
 
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 370px; align-items: start; }
 .map-col { min-width: 0; }
-.map-wrap { padding: 8px 8px 0; }
-#map { width: 100%; height: auto; display: block; }
+.map-wrap { padding: 8px 8px 0; position: relative; }
+#map { width: 100%; height: auto; display: block; touch-action: pan-y; }
+/* Zoom drill-down: country markers fade in past the zoom threshold. */
+.region-markers, .country-markers { transition: opacity 0.25s ease; }
+.country-markers { opacity: 0; }
+.country-markers .marker { pointer-events: none; }
+#map.zoomed-in .country-markers { opacity: 1; }
+#map.zoomed-in .country-markers .marker { pointer-events: auto; }
+#map.zoomed-in .region-markers { opacity: 0; }
+#map.zoomed-in .region-markers .marker { pointer-events: none; }
+.cmarker { cursor: pointer; outline: none; }
+.cmarker .cdot { fill: #a78bfa; stroke: #fff; stroke-width: 1.5; }
+.cmarker.active .cdot { fill: #fbbf24; }
+#zoomReset {
+  position: absolute; right: 14px; bottom: 10px;
+  background: rgba(13, 24, 48, 0.85); border: 1px solid var(--line);
+}
+#zoomReset.hidden { display: none; }
+.zoom-tip { color: var(--faint); font-size: 12.5px; margin: 0; padding: 0 16px 4px; }
+.zoom-tip.hidden { display: none; }
 .ocean { fill: #0e1a2e; }
 .graticule { fill: none; stroke: #16263f; stroke-width: 0.5; }
 .country { fill: #22344f; stroke: #0b1220; stroke-width: 0.6; }
