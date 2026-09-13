@@ -52,6 +52,16 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as f:
     INDEX_HTML = f.read()
 
+# Cache-buster: version the app.js URL from its mtime at startup. FastAPI
+# StaticFiles serves app.js with a 4h Cache-Control, so without a versioned
+# URL browsers keep a stale pre-deploy bundle (broke zoom on SMA-353).
+# Each deploy restarts the container -> new mtime -> new URL -> fresh fetch.
+APP_JS_VERSION = str(
+    int(os.path.getmtime(os.path.join(STATIC_DIR, "app.js")))
+)
+APP_JS_TAG = 'src="/static/app.js"'
+APP_JS_TAG_VERSIONED = f'src="/static/app.js?v={APP_JS_VERSION}"'
+
 GA4_PLACEHOLDER = "<!--GA4-->"
 
 
@@ -77,7 +87,7 @@ def index():
     html = INDEX_HTML.replace(
         GA4_PLACEHOLDER,
         ga4_snippet(config.GA_MEASUREMENT_ID) if config.GA_MEASUREMENT_ID else "",
-    )
+    ).replace(APP_JS_TAG, APP_JS_TAG_VERSIONED)
     return HTMLResponse(html)
 
 
