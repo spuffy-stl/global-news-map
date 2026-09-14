@@ -78,14 +78,19 @@ body {
 }
 #map { width: 100%; height: auto; display: block; touch-action: pan-y; border-radius: 12px; }
 
-/* Zoom drill-down: country markers fade in past the zoom threshold. */
-.region-markers, .country-markers { transition: opacity 0.25s ease; }
-.country-markers { opacity: 0; }
-.country-markers .marker { pointer-events: none; }
-#map.zoomed-in .country-markers { opacity: 1; }
-#map.zoomed-in .country-markers .marker { pointer-events: auto; }
-#map.zoomed-in .region-markers { opacity: 0; }
-#map.zoomed-in .region-markers .marker { pointer-events: none; }
+/* Zoom drill-down: continent -> region -> country marker layers. */
+.continent-markers, .region-markers, .country-markers { transition: opacity 0.25s ease; }
+.region-markers, .country-markers { opacity: 0; }
+.region-markers .marker, .country-markers .marker { pointer-events: none; }
+#map.level-region .region-markers { opacity: 1; }
+#map.level-region .region-markers .marker { pointer-events: auto; }
+#map.level-region .continent-markers { opacity: 0; }
+#map.level-region .continent-markers .marker { pointer-events: none; }
+#map.level-country .country-markers { opacity: 1; }
+#map.level-country .country-markers .marker { pointer-events: auto; }
+#map.level-country .continent-markers, #map.level-country .region-markers { opacity: 0; }
+#map.level-country .continent-markers .marker,
+#map.level-country .region-markers .marker { pointer-events: none; }
 
 .ocean { fill: url(#oceanGrad); }
 .graticule { fill: none; stroke: rgba(140, 180, 230, 0.10); stroke-width: 0.5; }
@@ -137,8 +142,24 @@ body {
 }
 .zoom-tip.hidden { display: none; }
 
-/* Region chips ----------------------------------------------------------- */
-.chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 6px 22px 16px; }
+.marker .sublabel {
+  fill: #9db4d8; font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em;
+  text-anchor: middle; pointer-events: none;
+  paint-order: stroke; stroke: rgba(6, 12, 24, 0.9); stroke-width: 3px;
+}
+.rmarker .label { font-size: 11px; }
+
+/* Breadcrumb + chips ------------------------------------------------------ */
+.chips { padding: 14px 6px 22px 16px; }
+.breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 10px 2px; }
+.crumb {
+  background: none; border: none; cursor: pointer; color: var(--accent);
+  font-size: 13px; font-weight: 600; padding: 2px 4px; border-radius: 6px;
+}
+.crumb:hover { text-decoration: underline; }
+.crumb.current { color: var(--ink); cursor: default; }
+.crumb-sep { color: var(--faint); font-size: 13px; }
+.chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   --chip-color: var(--accent);
   display: inline-flex; align-items: center; gap: 8px;
@@ -201,6 +222,15 @@ body {
   padding: 3px 9px; border-radius: 999px; font-weight: 600; font-size: 11.5px;
 }
 .story .meta a { color: var(--accent); font-weight: 600; }
+
+/* Country source list ----------------------------------------------------- */
+.sources { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
+.sources-label { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.source-tag {
+  font-size: 11.5px; font-weight: 600; color: #cfe6ff;
+  background: rgba(96, 165, 250, 0.12); border: 1px solid rgba(96, 165, 250, 0.3);
+  padding: 3px 10px; border-radius: 999px;
+}
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: minmax(0, 1fr); }

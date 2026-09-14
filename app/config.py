@@ -1,42 +1,136 @@
-"""Configuration: regions, feeds, paths, environment knobs."""
+"""Configuration: source taxonomy (continent > region > country > feeds),
+paths, environment knobs. The taxonomy lives in app/sources.yaml."""
+import json
 import os
+
+import yaml
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(APP_DIR)
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(PROJECT_ROOT, "data"))
 
-REGIONS = [
-    {"slug": "north-america", "name": "North America", "lat": 42.0, "lon": -100.0},
-    {"slug": "latin-america", "name": "Latin America", "lat": -15.0, "lon": -62.0},
-    {"slug": "europe", "name": "Europe", "lat": 50.0, "lon": 12.0},
-    {"slug": "africa", "name": "Africa", "lat": 4.0, "lon": 20.0},
-    {"slug": "middle-east", "name": "Middle East", "lat": 26.0, "lon": 44.0},
-    {"slug": "asia-pacific", "name": "Asia-Pacific", "lat": 22.0, "lon": 118.0},
-]
+SOURCES_PATH = os.path.join(APP_DIR, "sources.yaml")
+GEOJSON_PATH = os.path.join(APP_DIR, "static", "data", "countries-110m.geojson")
 
-# 2 reputable RSS feeds per region. No API keys needed.
-FEEDS = [
-    # North America
-    {"region": "north-america", "name": "NPR", "url": "https://feeds.npr.org/1001/rss.xml"},
-    {"region": "north-america", "name": "CBC", "url": "https://www.cbc.ca/webfeed/rss/rss-topstories"},
-    # Latin America
-    {"region": "latin-america", "name": "BBC Latin America", "url": "https://feeds.bbci.co.uk/news/world/latin_america/rss.xml"},
-    {"region": "latin-america", "name": "France 24 Americas", "url": "https://www.france24.com/en/americas/rss"},
-    # Europe
-    {"region": "europe", "name": "BBC Europe", "url": "https://feeds.bbci.co.uk/news/world/europe/rss.xml"},
-    {"region": "europe", "name": "DW Europe", "url": "https://rss.dw.com/rdf/rss-en-eu"},
-    # Africa
-    {"region": "africa", "name": "BBC Africa", "url": "https://feeds.bbci.co.uk/news/world/africa/rss.xml"},
-    {"region": "africa", "name": "France 24 Africa", "url": "https://www.france24.com/en/africa/rss"},
-    # Middle East
-    {"region": "middle-east", "name": "BBC Middle East", "url": "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml"},
-    {"region": "middle-east", "name": "Al Jazeera", "url": "https://www.aljazeera.com/xml/rss/all.xml"},
-    # Asia-Pacific
-    {"region": "asia-pacific", "name": "BBC Asia", "url": "https://feeds.bbci.co.uk/news/world/asia/rss.xml"},
-    {"region": "asia-pacific", "name": "ABC News Australia", "url": "https://www.abc.net.au/news/feed/51120/rss.xml"},
-]
 
-CRAWL_INTERVAL_HOURS = int(os.environ.get("CRAWL_INTERVAL_HOURS", "1"))
+def _load_taxonomy():
+    with open(SOURCES_PATH, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    return data.get("continents", [])
+
+
+CONTINENTS = _load_taxonomy()
+
+# ADMIN name -> {continent, region, country} for quick lookup.
+_COUNTRY_INDEX = {}
+# Feed URL -> {name, url, subscribers: [{continent, region, country, source_name}]}
+_FEED_INDEX = {}
+
+
+def _build_indexes():
+    for cont in CONTINENTS:
+        for region in cont.get("regions", []):
+            for country in region.get("countries", []):
+                name = country["name"]
+                _COUNTRY_INDEX[name] = {
+                    "continent": cont["slug"],
+                    "region": region["slug"],
+                    "country": name,
+                }
+                for src in country.get("sources", []) or []:
+                    url = src["url"]
+                    entry = _FEED_INDEX.setdefault(url, {"name": src["name"], "url": url, "subscribers": []})
+                    entry["subscribers"].append(
+                        {
+                            "continent": cont["slug"],
+                            "region": region["slug"],
+                            "country": name,
+                            "source_name": src["name"],
+                        }
+                    )
+
+
+_build_indexes()
+
+
+def country_location(admin):
+    """ADMIN -> (continent_slug, region_slug) or None."""
+    return _COUNTRY_INDEX.get(admin)
+
+
+def iter_countries():
+    """Yield (continent, region, country_dict) for every country."""
+    for cont in CONTINENTS:
+        for region in cont.get("regions", []):
+            for country in region.get("countries", []):
+                yield cont, region, country
+
+
+def iter_feeds():
+    """Yield each unique feed once: {name, url, subscribers}."""
+    return list(_FEED_INDEX.values())
+
+
+def country_count():
+    return len(_COUNTRY_INDEX)
+
+
+def feed_count():
+    return len(_FEED_INDEX)
+
+
+# --- Map positions -----------------------------------------------------------
+# Country positions come from the vendored Natural Earth GeoJSON (LABEL_X/Y,
+# falling back to the feature centroid). Region positions are the mean of
+# their countries' positions; continents keep hand-picked coordinates.
+
+def _load_positions():
+    positions = {}
+    try:
+        with open(GEOJSON_PATH, encoding="utf-8") as f:
+            gj = json.load(f)
+    except OSError:
+        return positions
+    for feat in gj.get("features", []):
+        props = feat.get("properties", {})
+        admin = props.get("ADMIN")
+        if not admin:
+            continue
+        lon, lat = props.get("LABEL_X"), props.get("LABEL_Y")
+        if not isinstance(lon, (int, float)) or not isinstance(lat, (int, float)):
+            try:
+                # crude centroid: average of first ring's coordinates
+                ring = feat["geometry"]["coordinates"][0]
+                if feat["geometry"]["type"] == "MultiPolygon":
+                    ring = feat["geometry"]["coordinates"][0][0]
+                xs = [p[0] for p in ring]
+                ys = [p[1] for p in ring]
+                lon, lat = sum(xs) / len(xs), sum(ys) / len(ys)
+            except Exception:
+                continue
+        positions[admin] = (lon, lat)
+    return positions
+
+
+_POSITIONS = _load_positions()
+
+
+def country_pos(admin):
+    return _POSITIONS.get(admin)
+
+
+def region_pos(region_countries):
+    pts = [_POSITIONS[c["name"]] for c in region_countries if c["name"] in _POSITIONS]
+    if not pts:
+        return None
+    return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+
+# --- Misc --------------------------------------------------------------------
+
+# Daily crawl time (UTC). 13:00 UTC = 06:00 PDT / 09:00 EDT.
+CRAWL_HOUR_UTC = int(os.environ.get("CRAWL_HOUR_UTC", "13"))
+CRAWL_MINUTE_UTC = int(os.environ.get("CRAWL_MINUTE_UTC", "0"))
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))
 USER_AGENT = os.environ.get(
     "USER_AGENT", "GlobalNewsMap/1.0 (world news map aggregator)"

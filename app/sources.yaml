@@ -1,0 +1,860 @@
+# News source taxonomy: continent > region > country > RSS sources.
+# - Country `name` MUST match the GeoJSON ADMIN name (used for map markers).
+#   Use `label` for a shorter display name.
+# - Sources must be LOCAL to the country: outlets based in / primarily serving
+#   that country, the kind of thing local readers actually read. English
+#   preferred; major national press in the local language is fine where that
+#   is what locals read. No pan-regional or international feeds.
+# - The crawler fetches each unique feed URL once per run and attributes items
+#   to every subscribed country.
+# - Validate with: python scripts/validate_feeds.py
+continents:
+  - slug: north-america
+    name: North America
+    lat: 25
+    lon: -100
+    regions:
+      - slug: northern-america
+        name: Northern America
+        countries:
+          - name: United States of America
+            label: United States
+            sources:
+              - name: NPR
+                url: https://feeds.npr.org/1001/rss.xml
+              - name: PBS NewsHour
+                url: https://www.pbs.org/newshour/feeds/rss/headlines
+              - name: ABC News
+                url: https://abcnews.go.com/abcnews/topstories
+          - name: Canada
+            sources:
+              - name: CBC
+                url: https://www.cbc.ca/webfeed/rss/rss-topstories
+              - name: Global News
+                url: https://globalnews.ca/feed/
+          - name: Greenland
+            sources:
+              - name: KNR
+                url: https://knr.gl/rss
+      - slug: mexico-central-america
+        name: Mexico & Central America
+        countries:
+          - name: Mexico
+            sources:
+              - name: Excelsior
+                url: https://www.excelsior.com.mx/rss
+              - name: El Financiero
+                url: https://www.elfinanciero.com.mx/rss
+          - name: Guatemala
+            sources:
+              - name: Prensa Libre
+                url: https://www.prensalibre.com/feed/
+          - name: Honduras
+            sources:
+              - name: Criterio.hn
+                url: https://criterio.hn/feed/
+          - name: El Salvador
+            sources:
+              - name: El Faro English
+                url: https://elfaro.net/en/feed
+          - name: Nicaragua
+            sources:
+              - name: Confidencial
+                url: https://confidencial.digital/feed/
+          - name: Costa Rica
+            sources:
+              - name: El Financiero
+                url: https://www.elfinancierocr.com/rss
+          - name: Panama
+            sources:
+              - name: La Prensa
+                url: https://www.prensa.com/arc/outboundfeeds/rss/?outputType=xml
+      - slug: caribbean
+        name: Caribbean
+        countries:
+          - name: Cuba
+            sources:
+              - name: Havana Times
+                url: https://havanatimes.org/feed/
+          - name: Haiti
+            sources:
+              - name: Le Nouvelliste
+                url: https://lenouvelliste.com/rss
+              - name: Haiti Gazette
+                url: https://www.haitigazette.com/feed/
+          - name: Dominican Republic
+            sources:
+              - name: Dominican Today
+                url: https://dominicantoday.com/feed/
+          - name: Jamaica
+            sources:
+              - name: Jamaica Gleaner
+                url: https://jamaica-gleaner.com/feed/news.xml
+          - name: Puerto Rico
+            sources:
+              - name: El Nuevo Dia
+                url: https://www.elnuevodia.com/arc/outboundfeeds/rss/?outputType=xml
+  - slug: south-america
+    name: Latin America
+    lat: -20
+    lon: -60
+    regions:
+      - slug: south-america
+        name: South America
+        countries:
+          - name: Brazil
+            sources:
+              - name: Folha de S.Paulo
+                url: https://feeds.folha.uol.com.br/emcimadahora/rss091.xml
+              - name: Rio Times
+                url: https://riotimesonline.com/feed/
+          - name: Argentina
+            sources:
+              - name: Buenos Aires Times
+                url: https://www.batimes.com.ar/feed/
+              - name: La Nación
+                url: https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml
+          - name: Chile
+            sources:
+              - name: La Tercera
+                url: https://latercera.com/rss
+              - name: BioBioChile
+                url: https://feeds.feedburner.com/radiobiobio/NNeJ
+          - name: Peru
+            sources:
+              - name: Peru Reports
+                url: https://perureports.com/feed
+              - name: RPP
+                url: https://rpp.pe/rss
+          - name: Colombia
+            sources:
+              - name: Colombia Reports
+                url: https://colombiareports.com/feed/
+              - name: El Tiempo
+                url: https://www.eltiempo.com/rss/colombia.xml
+              - name: La Silla Vacía
+                url: https://www.lasillavacia.com/feed/
+          - name: Venezuela
+            sources:
+              - name: Caracas Chronicles
+                url: https://www.caracaschronicles.com/feed/
+              - name: El Nacional
+                url: https://www.elnacional.com/feed/
+              - name: Efecto Cocuyo
+                url: https://efectococuyo.com/feed/
+          - name: Ecuador
+            sources:
+              - name: El Comercio
+                url: https://www.elcomercio.com/feed/
+          - name: Bolivia
+            sources:
+              - name: La Razón
+                url: https://larazon.bo/feed/
+              - name: Opinión
+                url: https://www.opinion.com.bo/rss/
+          - name: Paraguay
+            sources:
+              - name: ABC Color
+                url: https://www.abc.com.py/arc/outboundfeeds/rss/?outputType=xml
+              - name: La Nación
+                url: https://www.lanacion.com.py/arc/outboundfeeds/rss/?outputType=xml
+          - name: Uruguay
+            sources:
+              - name: MercoPress
+                url: https://en.mercopress.com/rss/
+  - slug: europe
+    name: Europe
+    lat: 50
+    lon: 15
+    regions:
+      - slug: western-europe
+        name: Western Europe
+        countries:
+          - name: United Kingdom
+            sources:
+              - name: BBC News
+                url: https://feeds.bbci.co.uk/news/rss.xml
+              - name: The Guardian UK
+                url: https://www.theguardian.com/uk/rss
+          - name: Ireland
+            sources:
+              - name: RTÉ News
+                url: https://www.rte.ie/rss/news.xml
+              - name: TheJournal.ie
+                url: https://www.thejournal.ie/feed/
+          - name: France
+            sources:
+              - name: France 24 English
+                url: https://www.france24.com/en/rss
+              - name: Le Monde
+                url: https://www.lemonde.fr/rss/une.xml
+          - name: Germany
+            sources:
+              - name: DW
+                url: https://rss.dw.com/rdf/rss-en-all
+              - name: DER SPIEGEL International
+                url: https://www.spiegel.de/international/index.rss
+          - name: Netherlands
+            sources:
+              - name: NL Times
+                url: https://nltimes.nl/rss
+              - name: DutchNews.nl
+                url: https://www.dutchnews.nl/feed/
+          - name: Belgium
+            sources:
+              - name: The Local Belgium
+                url: https://feeds.thelocal.com/rss/builder/be
+          - name: Spain
+            sources:
+              - name: El País English
+                url: https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada
+              - name: The Local Spain
+                url: https://feeds.thelocal.com/rss/builder/es
+          - name: Portugal
+            sources:
+              - name: The Portugal News
+                url: https://www.theportugalnews.com/rss
+              - name: Portugal Resident
+                url: https://www.portugalresident.com/feed
+          - name: Italy
+            sources:
+              - name: ANSA English
+                url: https://www.ansa.it/english/news/english_nr_rss.xml
+              - name: The Local Italy
+                url: https://feeds.thelocal.com/rss/builder/it
+          - name: Switzerland
+            sources:
+              - name: The Local Switzerland
+                url: https://feeds.thelocal.com/rss/builder/ch
+              - name: Le News
+                url: https://lenews.ch/feed/
+          - name: Austria
+            sources:
+              - name: The Local Austria
+                url: https://feeds.thelocal.com/rss/builder/at
+      - slug: nordics
+        name: Nordics
+        countries:
+          - name: Sweden
+            sources:
+              - name: The Local Sweden
+                url: https://feeds.thelocal.com/rss/builder/se
+              - name: Sweden Herald
+                url: https://swedenherald.com/rss.xml
+          - name: Norway
+            sources:
+              - name: The Local Norway
+                url: https://feeds.thelocal.com/rss/builder/no
+          - name: Denmark
+            sources:
+              - name: The Local Denmark
+                url: https://feeds.thelocal.com/rss/builder/dk
+          - name: Finland
+            sources:
+              - name: Yle News English
+                url: https://yle.fi/uutiset/rss/uutiset.rss?osasto=news
+              - name: Finland Today
+                url: https://finlandtoday.fi/feed
+          - name: Iceland
+            sources:
+              - name: RÚV English
+                url: https://www.ruv.is/rss/english
+              - name: Reykjavík Grapevine
+                url: https://grapevine.is/feed/
+      - slug: central-europe
+        name: Central Europe
+        countries:
+          - name: Czechia
+            sources:
+              - name: Radio Prague International
+                url: https://english.radio.cz/rcz-rss/en
+          - name: Poland
+            sources:
+              - name: Notes from Poland
+                url: https://notesfrompoland.com/feed/
+              - name: Krakow Post
+                url: https://www.krakowpost.com/feed/
+          - name: Hungary
+            sources:
+              - name: Daily News Hungary
+                url: https://dailynewshungary.com/feed/
+              - name: Hungary Today
+                url: https://hungarytoday.hu/feed/
+          - name: Romania
+            sources:
+              - name: Business Review
+                url: https://business-review.eu/feed
+      - slug: southeast-europe
+        name: Southeast Europe
+        countries:
+          - name: Greece
+            sources:
+              - name: Greek City Times
+                url: https://greekcitytimes.com/feed/
+              - name: Keep Talking Greece
+                url: https://www.keeptalkinggreece.com/feed/
+          - name: Serbia
+            sources:
+              - name: N1
+                url: https://n1info.rs/feed/
+              - name: Danas
+                url: https://www.danas.rs/feed/?column_id=0
+          - name: Croatia
+            sources:
+              - name: Croatia Week
+                url: https://croatiaweek.com/feed
+              - name: Total Croatia News
+                url: https://www.total-croatia-news.com/feed
+          - name: Bosnia and Herzegovina
+            sources:
+              - name: Sarajevo Times
+                url: https://sarajevotimes.com/feed
+              - name: N1 Bosnia and Herzegovina
+                url: https://n1info.ba/feed/
+          - name: Albania
+            sources:
+              - name: Tirana Times
+                url: https://www.tiranatimes.com/feed/
+          - name: North Macedonia
+            sources:
+              - name: MRT
+                url: https://www.mrt.com.mk/rss.xml
+              - name: A1on
+                url: https://a1on.mk/feed/
+          - name: Kosovo
+            sources:
+              - name: Prishtina Insight
+                url: https://prishtinainsight.com/feed/
+          - name: Cyprus
+            sources:
+              - name: Cyprus Mail
+                url: https://cyprus-mail.com/feed/
+              - name: Philenews English
+                url: https://en.philenews.com/feed/
+      - slug: eastern-europe-caucasus
+        name: Eastern Europe & Caucasus
+        countries:
+          - name: Ukraine
+            sources:
+              - name: Ukrainska Pravda English
+                url: https://www.pravda.com.ua/eng/rss/
+              - name: Kyiv Independent
+                url: https://kyivindependent.com/news-archive/rss/
+          - name: Belarus
+            sources:
+              - name: Nasha Niva English
+                url: https://nashaniva.com/?c=rss-all&lang=en
+          - name: Moldova
+            sources:
+              - name: Moldova.org
+                url: https://www.moldova.org/feed/
+              - name: IPN English
+                url: https://ipn.md/en/feed/
+          - name: Russia
+            sources:
+              - name: The Moscow Times
+                url: https://www.themoscowtimes.com/rss/news
+              - name: Meduza English
+                url: https://meduza.io/rss/en/all
+          - name: Turkey
+            sources:
+              - name: Hürriyet Daily News
+                url: http://www.hurriyetdailynews.com/rss/home
+              - name: Bianet English
+                url: https://bianet.org/rss/english
+          - name: Georgia
+            sources:
+              - name: Civil Georgia
+                url: https://civil.ge/feed
+              - name: OC Media
+                url: https://oc-media.org/feed/
+          - name: Armenia
+            sources:
+              - name: EVN Report
+                url: https://evnreport.com/feed/
+          - name: Azerbaijan
+            sources:
+              - name: Trend News Agency
+                url: https://www.trend.az/feeds/index.rss
+  - slug: africa
+    name: Africa
+    lat: 5
+    lon: 20
+    regions:
+      - slug: north-africa
+        name: North Africa
+        countries:
+          - name: Egypt
+            sources:
+              - name: Egypt Independent
+                url: https://www.egyptindependent.com/feed/
+              - name: Egyptian Streets
+                url: https://egyptianstreets.com/feed/
+          - name: Morocco
+            sources:
+              - name: Hespress English
+                url: https://en.hespress.com/feed
+              - name: TelQuel
+                url: https://telquel.ma/feed
+          - name: Algeria
+            sources:
+              - name: TSA Algérie
+                url: https://www.tsa-algerie.com/feed/
+              - name: Algérie360
+                url: https://www.algerie360.com/feed/
+          - name: Tunisia
+            sources:
+              - name: Leaders
+                url: https://www.leaders.com.tn/rss
+              - name: Mosaïque FM
+                url: https://www.mosaiquefm.net/fr/rss
+          - name: Libya
+            sources:
+              - name: Libya Herald
+                url: https://libyaherald.com/feed/
+      - slug: west-africa
+        name: West Africa
+        countries:
+          - name: Nigeria
+            sources:
+              - name: Premium Times
+                url: https://www.premiumtimesng.com/feed
+              - name: Punch
+                url: https://rss.punchng.com/v1/category/latest_news
+          - name: Niger
+            sources:
+              - name: Tam Tam Info
+                url: https://tamtaminfo.com/feed/
+              - name: ActuNiger
+                url: https://www.actuniger.com/component/joomrss/articles-offline.feed?Itemid=101
+          - name: Mali
+            sources:
+              - name: Journal du Mali
+                url: https://journaldumali.com/feed/
+              - name: Malijet
+                url: https://malijet.com/rss
+          - name: Burkina Faso
+            sources:
+              - name: leFaso.net
+                url: https://lefaso.net/spip.php?page=backend
+              - name: Burkina24
+                url: https://burkina24.com/feed/
+          - name: Senegal
+            sources:
+              - name: Senego
+                url: https://senego.com/feed
+              - name: APS
+                url: https://aps.sn/feed/
+          - name: Guinea
+            sources:
+              - name: Guineenews
+                url: https://guineenews.org/feed/
+              - name: AfricaGuinee
+                url: https://www.africaguinee.com/feed/
+          - name: Guinea-Bissau
+            sources:
+              - name: O Democrata
+                url: https://www.odemocratagb.com/?feed=rss2
+          - name: Sierra Leone
+            sources:
+              - name: Sierra Leone Telegraph
+                url: https://www.thesierraleonetelegraph.com/feed/
+          - name: Liberia
+            sources:
+              - name: Liberian Observer
+                url: https://www.liberianobserver.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc
+              - name: FrontPageAfrica
+                url: https://frontpageafricaonline.com/feed/
+          - name: Ivory Coast
+            sources:
+              - name: AIP
+                url: https://www.aip.ci/feed/
+              - name: Afrik Soir
+                url: https://www.afriksoir.net/feed/
+          - name: Ghana
+            sources:
+              - name: MyJoyOnline
+                url: https://www.myjoyonline.com/feed/
+              - name: 3News
+                url: https://3news.com/feed.xml
+      - slug: central-africa
+        name: Central Africa
+        countries:
+          - name: Chad
+            sources:
+              - name: Alwihda Info
+                url: https://www.alwihdainfo.com/rss/
+              - name: Tchadinfos
+                url: https://tchadinfos.com/feed/
+          - name: Cameroon
+            sources:
+              - name: 237online
+                url: https://www.237online.com/feed/
+              - name: Actu Cameroun
+                url: https://actucameroun.com/feed/
+          - name: Central African Republic
+            sources:
+              - name: Corbeau News
+                url: https://corbeaunews-centrafrique.org/feed/
+              - name: Radio Ndeke Luka
+                url: https://www.radiondekeluka.org/feed
+          - name: Gabon
+            sources:
+              - name: Gabon Review
+                url: https://www.gabonreview.com/feed/
+              - name: Gabonactu
+                url: https://gabonactu.com/feed/
+          - name: Democratic Republic of the Congo
+            label: DR Congo
+            sources:
+              - name: Radio Okapi
+                url: https://www.radiookapi.net/feed
+              - name: Actualité.cd
+                url: https://actualite.cd/feed/
+          - name: Republic of the Congo
+            label: Congo
+            sources:
+              - name: Journal de Brazza
+                url: https://www.journaldebrazza.com/feed/
+              - name: ADIAC
+                url: https://www.adiac-congo.com/flux_rss_home
+      - slug: east-africa
+        name: East Africa
+        countries:
+          - name: Sudan
+            sources:
+              - name: Radio Dabanga
+                url: https://www.dabangasudan.org/en/feed
+          - name: South Sudan
+            sources:
+              - name: Radio Tamazuj
+                url: https://www.radiotamazuj.org/en/feed
+          - name: Ethiopia
+            sources:
+              - name: The Reporter Ethiopia
+                url: https://www.thereporterethiopia.com/feed/
+              - name: Addis Fortune
+                url: https://addisfortune.news/feed
+          - name: Somalia
+            sources:
+              - name: Horseed Media
+                url: https://horseedmedia.net/feed/
+              - name: Caasimada Online
+                url: https://www.caasimada.net/feed/
+          - name: Kenya
+            sources:
+              - name: The Standard
+                url: https://www.standardmedia.co.ke/rss/headlines.php
+              - name: Capital News
+                url: https://capitalfm.africa/news/feed/
+              - name: The EastAfrican
+                url: https://www.theeastafrican.co.ke/rss.xml
+          - name: Uganda
+            sources:
+              - name: PML Daily
+                url: https://pmldaily.com/feed
+          - name: United Republic of Tanzania
+            label: Tanzania
+            sources:
+              - name: Daily News Tanzania
+                url: https://dailynews.co.tz/feed/
+              - name: HabariLeo
+                url: https://habarileo.co.tz/feed/
+          - name: Rwanda
+            sources:
+              - name: The New Times
+                url: https://www.newtimes.co.rw/rssFeed/14
+      - slug: southern-africa
+        name: Southern Africa
+        countries:
+          - name: Angola
+            sources:
+              - name: O País
+                url: https://www.opais.ao/feed/
+              - name: Correio Kianda
+                url: https://correiokianda.info/feed/
+          - name: Zambia
+            sources:
+              - name: Times of Zambia
+                url: https://times.co.zm/feed/
+              - name: Lusaka Times
+                url: http://feeds.feedburner.com/lusakatimes/hyJU
+          - name: Zimbabwe
+            sources:
+              - name: ZimLive
+                url: https://www.zimlive.com/feed/
+              - name: Nehanda Radio
+                url: https://nehandaradio.com/feed/
+          - name: Mozambique
+            sources:
+              - name: O País
+                url: https://opais.co.mz/feed/
+              - name: Carta de Moçambique
+                url: https://cartamz.com/feed/
+          - name: Madagascar
+            sources:
+              - name: Madagascar Tribune
+                url: https://www.madagascar-tribune.com/spip.php?page=backend
+              - name: 2424.mg
+                url: https://www.2424.mg/feed/
+          - name: South Africa
+            sources:
+              - name: Daily Maverick
+                url: https://www.dailymaverick.co.za/dmrss/
+              - name: The South African
+                url: https://www.thesouthafrican.com/feed/
+              - name: SABC News
+                url: https://www.sabcnews.com/sabcnews/feed/
+          - name: Namibia
+            sources:
+              - name: New Era
+                url: https://neweralive.na/feed/
+              - name: The Namibian
+                url: https://www.namibian.com.na/feed/
+          - name: Botswana
+            sources:
+              - name: Sunday Standard
+                url: https://www.sundaystandard.info/feed/
+              - name: The Gazette
+                url: https://www.thegazette.news/feed/
+          - name: eSwatini
+            label: Eswatini
+            sources:
+              - name: Eswatini Observer
+                url: https://www.eswatiniobserver.com/feed/
+  - slug: middle-east
+    name: Middle East
+    lat: 25
+    lon: 45
+    regions:
+      - slug: levant
+        name: Levant
+        countries:
+          - name: Israel
+            sources:
+              - name: Jerusalem Post
+                url: https://www.jpost.com/rss/rssfeedsfrontpage.aspx
+              - name: Times of Israel
+                url: https://www.timesofisrael.com/feed/
+              - name: Arutz Sheva
+                url: https://www.israelnationalnews.com/Rss.aspx?act=.1
+          - name: Palestine
+            sources:
+              - name: PNN
+                url: https://english.pnn.ps/feed
+              - name: Wattan
+                url: https://www.wattan.net/rss
+          - name: Lebanon
+            sources:
+              - name: NNA
+                url: https://www.nna-leb.gov.lb/en/rss
+              - name: Annahar
+                url: https://www.annahar.com/rss
+          - name: Syria
+            sources:
+              - name: SANA
+                url: https://sana.sy/en/?feed=rss2
+              - name: Syria Direct
+                url: https://syriadirect.org/feed/
+              - name: Enab Baladi
+                url: https://english.enabbaladi.net/feed/
+          - name: Jordan
+            sources:
+              - name: Jordan News
+                url: https://www.jordannews.jo/rss
+      - slug: gulf-states
+        name: Gulf States
+        countries:
+          - name: Saudi Arabia
+            sources: []
+          - name: United Arab Emirates
+            sources:
+              - name: Khaleej Times
+                url: https://www.khaleejtimes.com/api/v1/collections/uae.rss
+          - name: Qatar
+            sources:
+              - name: Al Jazeera
+                url: https://www.aljazeera.com/xml/rss/all.xml
+              - name: Doha News
+                url: https://dohanews.co/feed
+          - name: Kuwait
+            sources:
+              - name: Kuwait Times
+                url: https://kuwaittimes.com/rssFeed/0
+          - name: Bahrain
+            sources: []
+          - name: Oman
+            sources:
+              - name: Oman Observer
+                url: https://www.omanobserver.om/rssFeed/home-page
+              - name: Times of Oman
+                url: https://timesofoman.com/feed/
+      - slug: iraq-iran-yemen
+        name: Iraq, Iran & Yemen
+        countries:
+          - name: Iraq
+            sources:
+              - name: Iraqi News
+                url: https://www.iraqinews.com/feed/
+              - name: Iraq Business News
+                url: https://www.iraq-businessnews.com/feed
+          - name: Iran
+            sources:
+              - name: Tehran Times
+                url: https://www.tehrantimes.com/rss
+              - name: Mehr News
+                url: https://en.mehrnews.com/rss
+          - name: Yemen
+            sources:
+              - name: 26 September
+                url: https://en.26sepnews.net/rss
+              - name: Al-Masdar Online
+                url: https://www.almasdaronline.com/rss
+  - slug: asia-pacific
+    name: Asia-Pacific
+    lat: 10
+    lon: 130
+    regions:
+      - slug: east-asia
+        name: East Asia
+        countries:
+          - name: China
+            sources:
+              - name: South China Morning Post
+                url: https://www.scmp.com/rss/91/feed
+              - name: Sixth Tone
+                url: https://www.sixthtone.com/rss
+          - name: Mongolia
+            sources: []
+          - name: Japan
+            sources:
+              - name: Japan Times
+                url: https://www.japantimes.co.jp/news/feed/
+              - name: Nikkei Asia
+                url: https://asia.nikkei.com/rss/feed/nar
+          - name: North Korea
+            sources: []
+          - name: South Korea
+            sources:
+              - name: Korea Herald
+                url: https://www.koreaherald.com/rss/newsAll
+              - name: Korea Times
+                url: https://www.koreatimes.co.kr/www/rss/world.xml
+          - name: Taiwan
+            sources:
+              - name: Taipei Times
+                url: https://www.taipeitimes.com/xml/index.rss
+      - slug: southeast-asia
+        name: Southeast Asia
+        countries:
+          - name: Philippines
+            sources:
+              - name: Philstar
+                url: https://www.philstar.com/rss/world
+          - name: Vietnam
+            sources:
+              - name: VnExpress International
+                url: https://e.vnexpress.net/rss/news.rss
+          - name: Laos
+            sources:
+              - name: Laotian Times
+                url: https://laotiantimes.com/feed
+          - name: Cambodia
+            sources:
+              - name: Khmer Times
+                url: https://www.khmertimeskh.com/feed/
+              - name: Phnom Penh Post
+                url: https://www.phnompenhpost.com/rss
+          - name: Thailand
+            sources:
+              - name: Bangkok Post
+                url: https://www.bangkokpost.com/rss/data/topstories.xml
+              - name: Khaosod English
+                url: https://www.khaosodenglish.com/feed/
+          - name: Myanmar
+            sources:
+              - name: The Irrawaddy
+                url: https://www.irrawaddy.com/feed
+          - name: Malaysia
+            sources:
+              - name: Malay Mail
+                url: https://www.malaymail.com/feed/rss
+              - name: Free Malaysia Today
+                url: https://www.freemalaysiatoday.com/feed/
+          - name: Singapore
+            sources:
+              - name: The Straits Times
+                url: https://www.straitstimes.com/news/singapore/rss.xml
+              - name: Mothership
+                url: https://mothership.sg/feed/
+          - name: Indonesia
+            sources:
+              - name: Antara News
+                url: https://en.antaranews.com/rss/news.xml
+      - slug: south-asia
+        name: South Asia
+        countries:
+          - name: Bangladesh
+            sources:
+              - name: The Daily Star
+                url: https://www.thedailystar.net/frontpage/rss.xml
+          - name: India
+            sources:
+              - name: The Hindu
+                url: https://www.thehindu.com/news/national/feeder/default.rss
+              - name: The Indian Express
+                url: https://indianexpress.com/feed/
+          - name: Pakistan
+            sources:
+              - name: Dawn
+                url: https://www.dawn.com/feed
+              - name: The Express Tribune
+                url: https://tribune.com.pk/feed/home
+          - name: Sri Lanka
+            sources:
+              - name: Daily Mirror
+                url: https://www.dailymirror.lk/rss/breaking_news/108
+              - name: Ada Derana
+                url: https://www.adaderana.lk/rss.php
+          - name: Nepal
+            sources:
+              - name: Kathmandu Post
+                url: https://kathmandupost.com/rss
+          - name: Afghanistan
+            sources:
+              - name: Khaama Press
+                url: https://www.khaama.com/feed/
+              - name: Afghanistan International
+                url: https://www.afintl.com/en/feed
+      - slug: central-asia
+        name: Central Asia
+        countries:
+          - name: Kazakhstan
+            sources:
+              - name: Astana Times
+                url: https://astanatimes.com/feed/
+          - name: Uzbekistan
+            sources:
+              - name: Kun.uz
+                url: https://kun.uz/news/rss?lang=en
+      - slug: oceania
+        name: Oceania
+        countries:
+          - name: Australia
+            sources:
+              - name: ABC News
+                url: https://www.abc.net.au/news/feed/51120/rss.xml
+          - name: New Zealand
+            sources:
+              - name: RNZ
+                url: https://www.rnz.co.nz/rss/news.xml
+              - name: NZ Herald
+                url: https://www.nzherald.co.nz/arc/outboundfeeds/rss/section/nz/?outputType=xml&_website=nzh
+          - name: Papua New Guinea
+            sources:
+              - name: Post-Courier
+                url: https://www.postcourier.com.pg/feed
+          - name: Fiji
+            sources:
+              - name: FBC News
+                url: https://www.fbcnews.com.fj/feed

@@ -1,5 +1,8 @@
-"""Polite RSS crawler: fetches top headlines per region.
+"""Polite RSS crawler: fetches top headlines per country from local sources.
 
+- Sources come from app/sources.yaml (continent > region > country > feeds).
+- Each unique feed URL is fetched once per run, then attributed to every
+  subscribed country.
 - Proper User-Agent, request timeouts, 1s pause between feeds.
 - Per-feed error handling: one dead feed can never kill a run.
 """
@@ -69,11 +72,9 @@ def crawl_feed(feed):
         summary = _clean(entry.get("summary") or entry.get("description") or "")
         items.append(
             {
-                "region": feed["region"],
                 "title": title[:500],
                 "summary": summary,
                 "url": link,
-                "source": feed["name"],
                 "published_at": _published_iso(entry),
             }
         )
@@ -81,17 +82,37 @@ def crawl_feed(feed):
     return items
 
 
-def crawl_all_regions():
-    """Crawl every configured feed, upsert headlines, prune old rows."""
-    log.info("starting crawl of %d feeds", len(config.FEEDS))
+def crawl_all():
+    """Crawl every unique feed, attribute items to subscribed countries."""
+    feeds = config.iter_feeds()
+    log.info("starting crawl of %d unique feeds", len(feeds))
     counts = {}
-    for feed in config.FEEDS:
+    touched = set()
+    for feed in feeds:
         items = crawl_feed(feed)
-        for item in items:
-            db.upsert_headline(**item)
-        counts[feed["region"]] = counts.get(feed["region"], 0) + len(items)
-        log.info("feed %-22s region %-14s items %d", feed["name"], feed["region"], len(items))
-    for region in config.REGIONS:
-        db.prune_region(region["slug"])
-    log.info("crawl finished: %s", counts)
+        for sub in feed["subscribers"]:
+            for item in items:
+                db.upsert_headline(
+                    continent=sub["continent"],
+                    region=sub["region"],
+                    country=sub["country"],
+                    title=item["title"],
+                    summary=item["summary"],
+                    url=item["url"],
+                    source=sub["source_name"],
+                    published_at=item["published_at"],
+                )
+            key = (sub["continent"], sub["country"])
+            counts[key] = counts.get(key, 0) + len(items)
+            touched.add(sub["country"])
+        log.info("feed %-28s subscribers %2d items %d",
+                 feed["name"], len(feed["subscribers"]), len(items))
+    for country in touched:
+        db.prune_country(country)
+    log.info("crawl finished: %d countries touched", len(touched))
     return counts
+
+
+# Backwards-compatible alias (old scheduler entry point).
+def crawl_all_regions():
+    return crawl_all()
