@@ -16,48 +16,73 @@ because a third-party tile layer failed.
 
 ## Built with
 
-- **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (hourly crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing)
+- **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (daily crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing), [PyYAML](https://pyyaml.org/) (source taxonomy)
 - **Map** — [D3.js](https://d3js.org/) v7.9.0 (vendored) + [Natural Earth](https://www.naturalearthdata.com/) 110m admin-0 GeoJSON (vendored)
 - **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set); daily reporting via the [Analytics Data API](https://developers.google.com/analytics/devguides/reporting/data/v1) — `analytics/ga_report.py` ([google-auth](https://github.com/googleapis/google-auth-library-python), GCP service account with Viewer access on the property)
 - **Infra** — [Docker](https://www.docker.com/), [Google Cloud](https://cloud.google.com/) (e2-micro VM, static IP), [GitHub Actions](https://github.com/features/actions) (auto-deploy on push to `main`)
 - **Domain & TLS** — [Cloudflare](https://www.cloudflare.com/) (Registrar for `globalnewsmap.net`, DNS, CDN/proxy, Universal SSL edge cert), [Caddy](https://caddyserver.com/) on the VM (reverse proxy, automatic [Let's Encrypt](https://letsencrypt.org/) certs with auto-renewal)
 
-## News sources (public RSS feeds)
+## News sources (local RSS feeds per country)
 
-| Region | Feeds |
-| ------ | ----- |
-| North America | [NPR](https://www.npr.org/), [CBC](https://www.cbc.ca/) |
-| Latin America | [BBC Latin America](https://www.bbc.com/news/world/latin_america), [France 24 Americas](https://www.france24.com/en/americas/) |
-| Europe | [BBC Europe](https://www.bbc.com/news/world/europe), [DW Europe](https://www.dw.com/en/europe/s-1433) |
-| Africa | [BBC Africa](https://www.bbc.com/news/world/africa), [France 24 Africa](https://www.france24.com/en/africa/) |
-| Middle East | [BBC Middle East](https://www.bbc.com/news/world/middle_east), [Al Jazeera](https://www.aljazeera.com/) |
-| Asia-Pacific | [BBC Asia](https://www.bbc.com/news/world/asia), [ABC News Australia](https://www.abc.net.au/news/) |
+News comes from **local outlets** — sources based in and read in each country
+(English preferred; major national press in the local language where that is
+what locals read). The full taxonomy lives in
+[`app/sources.yaml`](app/sources.yaml):
+
+```yaml
+continents:
+  - slug: europe
+    name: Europe
+    lat: 50
+    lon: 15
+    regions:
+      - slug: nordics
+        name: Nordics
+        countries:
+          - name: Sweden          # MUST match the GeoJSON ADMIN name
+            sources:
+              - name: The Local Sweden
+                url: https://feeds.thelocal.com/rss/builder/se
+```
+
+- **Hierarchy** — continent → region → country → sources (141 countries,
+  ~230 validated local feeds as of 2026-09-13).
+- **Country `name`** must match the `ADMIN` property in the vendored Natural
+  Earth GeoJSON; `label` gives a shorter display name.
+- **Validation** — every URL is checked before it ships:
+  `python scripts/validate_feeds.py` fetches each unique feed, requires
+  HTTP 200 + a parseable RSS/Atom feed with ≥ 3 usable entries, and reports
+  per-country coverage. Countries with no working local feed ship with an
+  empty source list and are filled in by the daily growth loop.
 
 ## How it works
 
 - **Backend** — Python FastAPI serves the single-page frontend and a JSON API.
 - **Crawler** — A polite RSS crawler (proper User-Agent, timeouts, 1s pause
-  between feeds, per-feed error isolation) fetches top headlines for 6 world
-  regions from reputable public RSS feeds (BBC regional desks, NPR, CBC,
-  France 24, DW, Al Jazeera, NHK World). It runs once on startup and then
-  hourly via APScheduler, and can be triggered manually.
+  between feeds, per-feed error isolation) fetches each unique feed URL once
+  per run and attributes headlines to every subscribed country. It runs once
+  on startup and then daily at 13:00 UTC via APScheduler, and can be
+  triggered manually.
 - **Database** — SQLite file (`data/news.db`) with a `headlines` table
-  (`region, title, summary, url, source, published_at, fetched_at`).
-  Headlines are deduped by URL and pruned to the latest 60 per region.
-- **Frontend** — Dark-themed, mobile-friendly map UI. Region markers are
-  clickable and open a headlines panel with title, summary, source link and
-  timestamp. Zoom in (scroll/pinch) past 2.2× and country-level markers fade
-  in: headlines are attributed to countries by keyword matching on
-  title + summary, so denser news areas reveal more dots as you zoom.
+  (`continent, region, country, title, summary, url, source, published_at,
+  fetched_at`). Headlines are deduped by URL and pruned to the latest 100
+  per country.
+- **Frontend** — Dark-themed, mobile-friendly map UI. Zoom out for 6
+  continent markers; zoom in for ~26 region markers; zoom further for
+  country markers sized by story count. Clicking any marker opens a headlines
+  panel with title, summary, source link and timestamp; country panels also
+  list that country's news sources.
 
 ## API
 
 | Method | Path | Description |
 | ------ | ---- | ----------- |
 | GET | `/` | The map UI |
-| GET | `/api/regions` | The 6 regions (slug, name, lat, lon) |
-| GET | `/api/headlines?region=<slug>&limit=10` | Headlines for a region |
-| GET | `/api/status` | Per-region counts, last fetch time, server time |
+| GET | `/api/hierarchy` | Continent → region → country taxonomy with map positions, story counts, sources |
+| GET | `/api/headlines?continent=<slug>&limit=15` | Headlines for a continent |
+| GET | `/api/headlines?region=<slug>&limit=15` | Headlines for a region |
+| GET | `/api/headlines?country=<ADMIN name>&limit=15` | Headlines for a country |
+| GET | `/api/status` | Per-continent counts, last fetch time, server time |
 | POST | `/api/refresh` | Trigger a crawl in the background |
 
 ## Run locally
@@ -75,7 +100,7 @@ Environment variables:
 | -------- | ------- | ----------- |
 | `PORT` | `8000` | HTTP port (set automatically by Render/Railway) |
 | `DATA_DIR` | `<repo>/data` | Directory for the SQLite database |
-| `CRAWL_INTERVAL_HOURS` | `1` | Hours between scheduled crawls |
+| `CRAWL_HOUR_UTC` / `CRAWL_MINUTE_UTC` | `13` / `0` | Daily crawl time in UTC |
 | `GA_MEASUREMENT_ID` | *(empty)* | Google Analytics 4 measurement ID (e.g. `G-XXXXXXXXXX`). When set, the GA4 `gtag.js` snippet is injected into the page and these events are tracked: `select_region` (with `region`), `click_story` (with `region` and `source`), `refresh_headlines`. When empty, no analytics code is loaded at all. |
 
 ## Run with Docker

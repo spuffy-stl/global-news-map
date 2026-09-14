@@ -16,12 +16,12 @@ log = logging.getLogger("global-news-map")
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
-REGION_SLUGS = {r["slug"] for r in config.REGIONS}
+CONTINENT_SLUGS = {c["slug"] for c in config.CONTINENTS}
 
 
 def run_crawl():
     try:
-        crawler.crawl_all_regions()
+        crawler.crawl_all()
     except Exception:
         log.exception("crawl failed")
 
@@ -29,9 +29,11 @@ def run_crawl():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    # Daily crawl: fresh headlines every morning for the user (06:00 PDT).
     scheduler.add_job(
-        run_crawl, "interval", hours=config.CRAWL_INTERVAL_HOURS,
-        id="hourly_crawl", replace_existing=True, max_instances=1,
+        run_crawl, "cron",
+        hour=config.CRAWL_HOUR_UTC, minute=config.CRAWL_MINUTE_UTC,
+        id="daily_crawl", replace_existing=True, max_instances=1,
     )
     # Crawl once on startup so the map has headlines immediately.
     scheduler.add_job(
@@ -39,7 +41,10 @@ async def lifespan(app: FastAPI):
         id="startup_crawl", replace_existing=True, max_instances=1,
     )
     scheduler.start()
-    log.info("scheduler started; crawl interval %sh", config.CRAWL_INTERVAL_HOURS)
+    log.info(
+        "scheduler started; daily crawl at %02d:%02d UTC",
+        config.CRAWL_HOUR_UTC, config.CRAWL_MINUTE_UTC,
+    )
     yield
     scheduler.shutdown(wait=False)
 
@@ -94,23 +99,80 @@ def index():
     return HTMLResponse(html)
 
 
-@app.get("/api/regions")
-def list_regions():
-    return config.REGIONS
+@app.get("/api/hierarchy")
+def get_hierarchy():
+    """Continent > region > country taxonomy with map positions and story counts."""
+    counts = db.get_country_counts()
+    continents = []
+    for cont in config.CONTINENTS:
+        regions = []
+        for region in cont.get("regions", []):
+            rpos = config.region_pos(region.get("countries", []))
+            countries = []
+            for country in region.get("countries", []):
+                name = country["name"]
+                cpos = config.country_pos(name)
+                countries.append(
+                    {
+                        "name": name,
+                        "label": country.get("label") or name,
+                        "lat": cpos[1] if cpos else None,
+                        "lon": cpos[0] if cpos else None,
+                        "stories": counts.get(name, 0),
+                        "sources": [s["name"] for s in country.get("sources", []) or []],
+                    }
+                )
+            regions.append(
+                {
+                    "slug": region["slug"],
+                    "name": region["name"],
+                    "lat": rpos[1] if rpos else None,
+                    "lon": rpos[0] if rpos else None,
+                    "countries": countries,
+                }
+            )
+        continents.append(
+            {
+                "slug": cont["slug"],
+                "name": cont["name"],
+                "lat": cont["lat"],
+                "lon": cont["lon"],
+                "regions": regions,
+            }
+        )
+    return {"continents": continents}
 
 
 @app.get("/api/headlines")
-def get_headlines(region: str = Query(...), limit: int = Query(10, ge=1, le=50)):
-    if region not in REGION_SLUGS:
-        raise HTTPException(status_code=404, detail="unknown region")
-    return db.get_headlines(region, limit)
+def get_headlines(
+    continent: str = Query(None),
+    region: str = Query(None),
+    country: str = Query(None),
+    limit: int = Query(12, ge=1, le=50),
+):
+    """Headlines at any taxonomy level. `region` also accepts a continent slug
+    (backwards compatibility with pre-SMA-360 clients)."""
+    if country:
+        return db.get_headlines("country", country, limit)
+    if region:
+        if region in CONTINENT_SLUGS:
+            return db.get_headlines("continent", region, limit)
+        return db.get_headlines("region", region, limit)
+    if continent:
+        if continent not in CONTINENT_SLUGS:
+            raise HTTPException(status_code=404, detail="unknown continent")
+        return db.get_headlines("continent", continent, limit)
+    raise HTTPException(status_code=400, detail="pass continent, region or country")
 
 
 @app.get("/api/status")
 def get_status():
+    st = db.get_status()
     return {
-        "regions": db.get_status(),
-        "crawl_interval_hours": config.CRAWL_INTERVAL_HOURS,
+        "continents": st["continents"],
+        "total_count": st["total_count"],
+        "last_fetched": st["last_fetched"],
+        "crawl": "daily",
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
