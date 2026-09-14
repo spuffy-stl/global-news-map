@@ -150,6 +150,32 @@ def upsert_headline(continent, region, country, title, summary, url, source, pub
             conn.close()
 
 
+def purge_unknown_continents(valid_slugs):
+    """Delete headlines whose continent slug is not in the current taxonomy.
+
+    Guards against stale rows from retired taxonomy versions (e.g. the
+    pre-hierarchy 'latin-america' slug left behind by the SMA-360 rebuild):
+    without this, /api/status keeps reporting dead continents. Returns the
+    number of rows deleted.
+    """
+    valid = list(valid_slugs)
+    with _lock:
+        conn = _connect()
+        try:
+            if not valid:
+                return 0
+            placeholders = ",".join("?" for _ in valid)
+            cur = conn.execute(
+                f"DELETE FROM headlines WHERE continent NOT IN ({placeholders})",
+                valid,
+            )
+            deleted = cur.rowcount
+            conn.commit()
+            return deleted
+        finally:
+            conn.close()
+
+
 def prune_country(country, keep=MAX_PER_COUNTRY):
     with _lock:
         conn = _connect()

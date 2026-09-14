@@ -109,6 +109,9 @@ def crawl_all():
                  feed["name"], len(feed["subscribers"]), len(items))
     for country in touched:
         db.prune_country(country)
+    purged = db.purge_unknown_continents({c["slug"] for c in config.CONTINENTS})
+    if purged:
+        log.info("purged %d headlines with retired continent slugs", purged)
     log.info("crawl finished: %d countries touched", len(touched))
     return counts
 
