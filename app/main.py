@@ -29,6 +29,12 @@ def run_crawl():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    # Purge rows from retired taxonomy versions (e.g. pre-hierarchy
+    # 'latin-america' rows left by the SMA-360 rebuild) so /api/status
+    # only reports live continents. crawl_all() repeats this after each crawl.
+    purged = db.purge_unknown_continents(CONTINENT_SLUGS)
+    if purged:
+        log.info("startup purge removed %d headlines with retired continent slugs", purged)
     # Daily crawl: fresh headlines every morning for the user (06:00 PDT).
     scheduler.add_job(
         run_crawl, "cron",
