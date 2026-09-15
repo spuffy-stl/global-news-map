@@ -171,6 +171,12 @@ def get_headlines(
     raise HTTPException(status_code=400, detail="pass continent, region or country")
 
 
+@app.get("/api/top-headlines")
+def get_top_headlines(limit: int = Query(15, ge=1, le=50)):
+    """Most recent headlines across all continents (world view / first-visit hook)."""
+    return db.get_top_headlines(limit)
+
+
 @app.get("/api/status")
 def get_status():
     st = db.get_status()

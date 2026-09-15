@@ -8,3 +8,4 @@ data/*.db-*
 .DS_Store
 
 .linear/
+.linear-ops/

@@ -202,8 +202,24 @@ def get_headlines(level, key, limit=10):
             cur = conn.execute(
                 "SELECT continent, region, country, title, summary, url, source,"
                 " published_at, fetched_at FROM headlines WHERE {} = ?"
-                " ORDER BY fetched_at DESC, id DESC LIMIT ?".format(level),
+                " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?".format(level),
                 (key, limit),
+            )
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+
+def get_top_headlines(limit=15):
+    """Most recent headlines across all continents (world view / first-visit hook)."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "SELECT continent, region, country, title, summary, url, source,"
+                " published_at, fetched_at FROM headlines"
+                " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?",
+                (limit,),
             )
             return [dict(r) for r in cur.fetchall()]
         finally:
