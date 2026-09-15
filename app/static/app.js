@@ -27,6 +27,27 @@
   var panelClose = document.getElementById("panelClose");
   var zoomResetBtn = document.getElementById("zoomReset");
   var zoomTipEl = document.getElementById("zoomTip");
+  var freshBadge = document.getElementById("freshBadge");
+
+  // Returning-visitor hook (SMA-381): show "N new since your last visit" on the
+  // world view so repeat visitors see the daily crawl is producing fresh value.
+  function updateFreshBadge(items) {
+    try {
+      var now = Date.now();
+      var last = parseInt(window.localStorage.getItem("gnm_last_visit") || "0", 10);
+      if (last > 0) {
+        var n = items.filter(function (s) {
+          var t = Date.parse(s.published_at || s.fetched_at || "");
+          return t && t > last;
+        }).length;
+        if (n > 0) {
+          freshBadge.textContent = n + " new since your last visit";
+          freshBadge.classList.remove("hidden");
+        }
+      }
+      window.localStorage.setItem("gnm_last_visit", String(now));
+    } catch (e) { /* storage unavailable (private mode) — skip silently */ }
+  }
 
   var continents = [];
   var active = { continent: null, region: null, country: null }; // slugs / ADMIN
@@ -375,6 +396,7 @@
       .then(function (r) { return r.json(); })
       .then(function (items) {
         var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
+        updateFreshBadge(items);
         renderStories("Top stories right now",
           items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
           items, hint);
@@ -502,6 +524,9 @@
   });
 
   panelClose.addEventListener("click", goWorld);
+  freshBadge.addEventListener("click", function () {
+    freshBadge.classList.add("hidden");
+  });
 
   // Track outbound story clicks (delegated; story cards are re-rendered).
   storiesEl.addEventListener("click", function (e) {

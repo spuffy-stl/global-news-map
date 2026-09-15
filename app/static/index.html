@@ -3,7 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Global News Map</title>
+<title>Global News Map — Today's headlines from local news outlets worldwide</title>
+<meta name="description" content="Explore today's headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">
+<link rel="canonical" href="https://globalnewsmap.net/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Global News Map">
+<meta property="og:title" content="Global News Map — Today's headlines from local news outlets worldwide">
+<meta property="og:description" content="Explore today's headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">
+<meta property="og:url" content="https://globalnewsmap.net/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Global News Map — Today's headlines from local news outlets worldwide">
+<meta name="twitter:description" content="Explore today's headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">
 <link rel="stylesheet" href="/static/style.css">
 <!--GA4-->
 </head>
@@ -12,6 +22,7 @@
   <div class="brand"><span class="globe" aria-hidden="true">🌐</span><h1>Global News Map</h1></div>
   <div class="topbar-right">
     <span id="updated" class="updated">loading…</span>
+    <button id="freshBadge" class="btn fresh hidden" type="button" title="Dismiss"></button>
     <button id="refreshBtn" class="btn" type="button">⟳ Refresh</button>
   </div>
 </header>

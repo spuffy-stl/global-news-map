@@ -59,6 +59,12 @@ body {
   padding: 7px 12px; box-shadow: none; border: 1px solid rgba(120, 170, 255, 0.16);
 }
 .btn.ghost:hover { color: var(--ink); background: rgba(120, 170, 255, 0.14); box-shadow: none; }
+.btn.fresh {
+  background: rgba(52, 211, 153, 0.16); color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  padding: 7px 12px; border-radius: 999px; font-size: 13px;
+}
+#freshBadge.hidden { display: none; }
 
 /* Layout ---------------------------------------------------------------- */
 .layout {
