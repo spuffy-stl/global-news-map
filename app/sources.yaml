@@ -669,6 +669,8 @@ continents:
             sources:
               - name: Arab News
                 url: https://www.arabnews.com/rss.xml
+              - name: Asharq Al-Awsat
+                url: https://english.aawsat.com/feed
           - name: United Arab Emirates
             sources:
               - name: Khaleej Times
