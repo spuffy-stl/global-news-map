@@ -25,9 +25,21 @@ _TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _fetch(url):
-    resp = _session.get(url, timeout=config.REQUEST_TIMEOUT)
-    resp.raise_for_status()
-    return resp.content
+    # One retry with a short backoff: transient network/proxy failures are
+    # common across 234 feeds (observed with a Cloudflare-fronted feed that
+    # succeeded on retry), and a single failed attempt leaves a country empty
+    # until the next daily crawl.
+    last_exc = None
+    for attempt in (1, 2):
+        try:
+            resp = _session.get(url, timeout=config.REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            return resp.content
+        except Exception as exc:
+            last_exc = exc
+            if attempt == 1:
+                time.sleep(3)
+    raise last_exc
 
 
 def _published_iso(entry):
