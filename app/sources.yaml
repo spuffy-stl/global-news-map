@@ -666,7 +666,9 @@ continents:
         name: Gulf States
         countries:
           - name: Saudi Arabia
-            sources: []
+            sources:
+              - name: Arab News
+                url: https://www.arabnews.com/rss.xml
           - name: United Arab Emirates
             sources:
               - name: Khaleej Times
