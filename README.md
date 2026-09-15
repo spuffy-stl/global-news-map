@@ -79,6 +79,7 @@ continents:
 | ------ | ---- | ----------- |
 | GET | `/` | The map UI |
 | GET | `/api/hierarchy` | Continent → region → country taxonomy with map positions, story counts, sources |
+| GET | `/api/top-headlines?limit=15` | Freshest headlines across all continents (world view) |
 | GET | `/api/headlines?continent=<slug>&limit=15` | Headlines for a continent |
 | GET | `/api/headlines?region=<slug>&limit=15` | Headlines for a region |
 | GET | `/api/headlines?country=<ADMIN name>&limit=15` | Headlines for a country |

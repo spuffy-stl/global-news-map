@@ -328,9 +328,15 @@
   // ---------------------------------------------------------------------------
   function storyCard(s) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
+    var favicon = "";
+    try {
+      var host = new URL(s.url).hostname.replace(/^www\./, "");
+      favicon = '<img class="favicon" src="https://www.google.com/s2/favicons?domain=' +
+        esc(host) + '&sz=32" alt="" loading="lazy" onerror="this.remove()">';
+    } catch (e) { /* leave favicon empty on unparseable URL */ }
     return (
       '<article class="story" data-source="' + esc(s.source || "") + '">' +
-        '<h3><a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
+        '<h3>' + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
         "<span>" + esc(pub) + "</span>" +
@@ -358,14 +364,32 @@
     return fetch("/api/headlines?" + params + "&limit=15").then(function (r) { return r.json(); });
   }
 
+  function loadWorldHeadlines() {
+    // First-visit hook: show the freshest stories immediately so a new visitor
+    // sees value without having to click anything (SMA-367), and every visit
+    // starts with clickable headlines (SMA-366).
+    panelTitle.textContent = "Top stories right now";
+    panelMeta.textContent = "";
+    storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    fetch("/api/top-headlines?limit=15")
+      .then(function (r) { return r.json(); })
+      .then(function (items) {
+        var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
+        renderStories("Top stories right now",
+          items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
+          items, hint);
+      })
+      .catch(function () {
+        storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
+      });
+  }
+
   function goWorld() {
     active = { continent: null, region: null, country: null };
     markActive();
     trackEvent("select_world");
     svg.transition().duration(450).call(mapZoom.transform, d3.zoomIdentity);
-    panelTitle.textContent = "Top stories";
-    panelMeta.textContent = "";
-    storiesEl.innerHTML = '<p class="hint">Select a continent on the map to see its top headlines.</p>';
+    loadWorldHeadlines();
   }
 
   function selectContinent(slug, zoom) {
@@ -500,6 +524,7 @@
     worldFeatures = res[1].features;
     drawMap();
     drawNav();
+    loadWorldHeadlines();
     refreshStatus();
     setInterval(refreshStatus, 60000);
   }).catch(function (err) {
