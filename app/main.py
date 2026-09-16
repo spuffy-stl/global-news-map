@@ -2,12 +2,14 @@
 import html
 import logging
 import os
+import threading
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config, crawler, db
@@ -264,7 +266,27 @@ def get_status():
     }
 
 
+# Rate limit for POST /api/refresh (SMA-392): a full crawl is the most
+# expensive operation on the box and the likeliest path to getting the egress
+# IP blocked by source sites (cf. the SMA-369 Saudi Arabia block). Caddy
+# proxies all traffic, so per-IP keying is meaningless — use a global cooldown.
+_refresh_cooldown_s = 600
+_refresh_lock = threading.Lock()
+_last_refresh_trigger = 0.0
+
+
 @app.post("/api/refresh")
 def trigger_refresh(background_tasks: BackgroundTasks):
+    global _last_refresh_trigger
+    with _refresh_lock:
+        now = time.monotonic()
+        if now - _last_refresh_trigger < _refresh_cooldown_s:
+            retry_after = int(_refresh_cooldown_s - (now - _last_refresh_trigger))
+            return JSONResponse(
+                {"detail": "a refresh was triggered recently; try again later"},
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
+            )
+        _last_refresh_trigger = now
     background_tasks.add_task(run_crawl)
     return {"status": "refresh started"}

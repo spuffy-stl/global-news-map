@@ -497,26 +497,32 @@
   }
 
   refreshBtn.addEventListener("click", function () {
+    // SMA-392: no longer triggers a crawl (POST /api/refresh was unthrottled
+    // and unused). Just re-fetch headlines for the current view in place.
     refreshBtn.disabled = true;
-    refreshBtn.textContent = "⟳ Refreshing…";
+    refreshBtn.textContent = "⟳ Checking…";
     trackEvent("refresh_headlines");
-    var before = null;
-    refreshStatus().then(function (latest) {
-      before = latest;
-      return fetch("/api/refresh", { method: "POST" });
-    }).then(function () {
-      var tries = 0;
-      var timer = setInterval(function () {
-        tries++;
+    refreshStatus().then(function (before) {
+      if (active.country) selectCountry(active.country, false);
+      else if (active.region) selectRegion(active.continent, active.region, false);
+      else if (active.continent) selectContinent(active.continent, false);
+      else loadWorldHeadlines();
+      // Give the headline fetch a moment, then update the status stamp.
+      setTimeout(function () {
         refreshStatus().then(function (latest) {
-          if ((before && latest && latest > before) || tries >= 30) {
-            clearInterval(timer);
-            refreshBtn.disabled = false;
-            refreshBtn.textContent = "⟳ Refresh";
-            location.reload(); // hierarchy (story counts) changed; simplest correct refresh
+          if (before && latest && latest > before) {
+            freshBadge.textContent = "New headlines — updated just now";
+            freshBadge.classList.remove("hidden");
+          } else {
+            refreshBtn.textContent = "✓ Up to date";
+            setTimeout(function () {
+              if (!refreshBtn.disabled) refreshBtn.textContent = "⟳ Refresh";
+            }, 2000);
           }
+          refreshBtn.disabled = false;
+          if (refreshBtn.textContent === "⟳ Checking…") refreshBtn.textContent = "⟳ Refresh";
         });
-      }, 4000);
+      }, 2500);
     }).catch(function () {
       refreshBtn.disabled = false;
       refreshBtn.textContent = "⟳ Refresh";
