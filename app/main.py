@@ -1,4 +1,5 @@
 """FastAPI app: serves the map UI and the headlines JSON API."""
+import html
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -6,7 +7,7 @@ from datetime import datetime, timezone
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import config, crawler, db
@@ -103,6 +104,80 @@ def index():
         ga4_snippet(config.GA_MEASUREMENT_ID) if config.GA_MEASUREMENT_ID else "",
     ).replace(APP_JS_TAG, APP_JS_TAG_VERSIONED).replace(STYLE_TAG, STYLE_TAG_VERSIONED)
     return HTMLResponse(html)
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    """Sitemap for crawlers (SMA-394). Google auto-discovers /sitemap.xml;
+    the live /robots.txt is served by Cloudflare's content-signals feature,
+    so we cannot append a Sitemap: line there."""
+    st = db.get_status()
+    lastmod = st.get("last_fetched") or datetime.now(timezone.utc).isoformat()
+    base = "https://globalnewsmap.net"
+    urls = "".join(
+        f'  <url><loc>{base}{path}</loc><lastmod>{lastmod}</lastmod></url>\n'
+        for path in ("/", "/top")
+    )
+    xml = (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+        + urls
+        + "</urlset>"
+    )
+    return Response(content=xml, media_type="application/xml")
+
+
+@app.get("/top")
+def top_stories():
+    """Server-rendered list of today's top headlines (SMA-394): crawlable
+    without JavaScript, for SEO and for readers who just want the list."""
+    items = db.get_top_headlines(50)
+    cards = []
+    for it in items:
+        title = html.escape(it.get("title") or "")
+        url = html.escape(it.get("url") or "#", quote=True)
+        source = html.escape(it.get("source") or "")
+        country = html.escape(it.get("country") or "")
+        when = html.escape(it.get("published_at") or it.get("fetched_at") or "")
+        summary = html.escape(it.get("summary") or "")
+        summary_html = f'<p class="summary">{summary}</p>' if summary else ""
+        cards.append(
+            f'<article class="story">\n'
+            f'  <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>\n'
+            f'  <div class="meta">{source} · {country} · {when}</div>\n'
+            f"{summary_html}\n"
+            f"</article>"
+        )
+    body = "\n".join(cards) or "<p>No headlines yet — the daily crawl is still running.</p>"
+    page = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Top world headlines today — Global News Map</title>
+<meta name="description" content="Today's top world headlines from local news outlets across 141 countries, updated daily by the Global News Map.">
+<link rel="canonical" href="https://globalnewsmap.net/top">
+<style>
+body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px; color: #1a1a1a; }}
+header a {{ color: inherit; text-decoration: none; }}
+.story {{ border-bottom: 1px solid #e5e5e5; padding: 12px 0; }}
+.story h2 {{ font-size: 1.05rem; margin: 0 0 4px; }}
+.story h2 a {{ color: #0b5fff; }}
+.meta {{ font-size: 0.8rem; color: #666; }}
+.summary {{ font-size: 0.9rem; color: #333; margin: 6px 0 0; }}
+footer {{ margin-top: 24px; font-size: 0.8rem; color: #666; }}
+</style>
+</head>
+<body>
+<header><h1><a href="/">🌐 Global News Map</a></h1>
+<p>Today's top world headlines from local news outlets worldwide. Updated daily.</p></header>
+<main>
+{body}
+</main>
+<footer>Headlines belong to their publishers and link out to the original articles.</footer>
+</body>
+</html>"""
+    return HTMLResponse(page)
 
 
 @app.get("/api/hierarchy")
