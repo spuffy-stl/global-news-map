@@ -20,6 +20,12 @@
 <body>
 <header class="topbar">
   <div class="brand"><span class="globe" aria-hidden="true">🌐</span><h1>Global News Map</h1></div>
+  <div class="search-wrap">
+    <input id="countrySearch" type="search" placeholder="Search 141 countries…" aria-label="Search countries and regions"
+      autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false"
+      aria-controls="searchResults" aria-autocomplete="list">
+    <ul id="searchResults" class="search-results hidden" role="listbox" aria-label="Matching places"></ul>
+  </div>
   <div class="topbar-right">
     <span id="updated" class="updated">loading…</span>
     <button id="freshBadge" class="btn fresh hidden" type="button" title="Dismiss"></button>
