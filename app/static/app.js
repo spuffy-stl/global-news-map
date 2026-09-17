@@ -547,12 +547,147 @@
 
   var worldFeatures = [];
 
+  // Country search box (SMA-393): text search over the already-loaded
+  // /api/hierarchy data — no new API. Enter/pick selects via the same
+  // selectCountry/selectRegion/selectContinent path as a map click.
+  var searchInput = document.getElementById("countrySearch");
+  var searchResultsEl = document.getElementById("searchResults");
+  var searchIndex = [];   // {kind, label, sub, hay, ...ids}
+  var searchMatches = [];
+  var searchSel = -1;
+
+  function buildSearchIndex() {
+    searchIndex = [];
+    continents.forEach(function (c) {
+      searchIndex.push({
+        kind: "continent", label: c.name, sub: "",
+        hay: c.name.toLowerCase(), slug: c.slug
+      });
+      c.regions.forEach(function (r) {
+        searchIndex.push({
+          kind: "region", label: r.name, sub: c.name,
+          hay: (r.name + " " + c.name).toLowerCase(),
+          contSlug: c.slug, slug: r.slug
+        });
+        r.countries.forEach(function (ct) {
+          searchIndex.push({
+            kind: "country", label: ct.label || ct.name, sub: r.name + " · " + c.name,
+            hay: ((ct.label || "") + " " + ct.name + " " + r.name).toLowerCase(),
+            admin: ct.name
+          });
+        });
+      });
+    });
+  }
+
+  function searchPick(item) {
+    closeSearch();
+    searchInput.value = "";
+    trackEvent("search_country", { kind: item.kind, value: item.label });
+    if (item.kind === "country") selectCountry(item.admin, true);
+    else if (item.kind === "region") selectRegion(item.contSlug, item.slug, true);
+    else selectContinent(item.slug, true);
+  }
+
+  function closeSearch() {
+    searchResultsEl.classList.add("hidden");
+    searchResultsEl.innerHTML = "";
+    searchInput.setAttribute("aria-expanded", "false");
+    searchMatches = [];
+    searchSel = -1;
+  }
+
+  function paintSearchSel() {
+    var items = searchResultsEl.querySelectorAll(".search-item");
+    for (var i = 0; i < items.length; i++) {
+      items[i].classList.toggle("active", i === searchSel);
+      items[i].setAttribute("aria-selected", i === searchSel ? "true" : "false");
+    }
+  }
+
+  function renderSearch(q) {
+    var query = q.trim().toLowerCase();
+    if (!query) { closeSearch(); return; }
+    var words = query.split(/\s+/);
+    var matches = searchIndex.filter(function (it) {
+      return words.every(function (w) { return it.hay.indexOf(w) !== -1; });
+    });
+    var rank = { country: 0, region: 1, continent: 2 };
+    matches.sort(function (a, b) {
+      var sa = score(a), sb = score(b);
+      return (sa - sb) || (rank[a.kind] - rank[b.kind]) ||
+        (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
+    });
+    function score(it) {
+      var l = it.label.toLowerCase();
+      if (l === query) return 0;
+      if (l.indexOf(query) === 0) return 1;
+      return 2;
+    }
+    searchMatches = matches.slice(0, 8);
+    searchSel = -1;
+    if (!searchMatches.length) {
+      searchResultsEl.innerHTML =
+        '<li class="search-empty">No place matches <strong>' + esc(q.trim()) +
+        '</strong> — try a country or region name.</li>';
+    } else {
+      searchResultsEl.innerHTML = searchMatches.map(function (it, i) {
+        return '<li role="option" aria-selected="false">' +
+          '<button type="button" class="search-item" data-i="' + i + '">' +
+          esc(it.label) +
+          (it.sub ? ' <span class="sub">' + esc(it.sub) + "</span>" : "") +
+          '<span class="kind">' + it.kind + "</span></button></li>";
+      }).join("");
+    }
+    searchResultsEl.classList.remove("hidden");
+    searchInput.setAttribute("aria-expanded", "true");
+  }
+
+  searchInput.addEventListener("input", function () { renderSearch(searchInput.value); });
+
+  searchInput.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      searchInput.value = "";
+      closeSearch();
+      return;
+    }
+    if (searchResultsEl.classList.contains("hidden")) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      var n = searchMatches.length;
+      if (!n) return;
+      searchSel = e.key === "ArrowDown"
+        ? (searchSel + 1) % n
+        : (searchSel - 1 + n) % n;
+      paintSearchSel();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      var item = searchMatches[searchSel >= 0 ? searchSel : 0];
+      if (item) searchPick(item);
+    }
+  });
+
+  searchResultsEl.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest(".search-item") : null;
+    if (!btn) return;
+    var item = searchMatches[parseInt(btn.getAttribute("data-i"), 10)];
+    if (item) searchPick(item);
+  });
+
+  document.addEventListener("click", function (e) {
+    var t = e.target && e.target.closest ? e.target.closest(".search-wrap") : null;
+    if (!searchResultsEl.classList.contains("hidden") && !t) {
+      closeSearch();
+    }
+  });
+
   Promise.all([
     fetch("/api/hierarchy").then(function (r) { return r.json(); }),
     fetch("/static/data/countries-110m.geojson").then(function (r) { return r.json(); })
   ]).then(function (res) {
     continents = res[0].continents;
     worldFeatures = res[1].features;
+    buildSearchIndex();
     drawMap();
     drawNav();
     loadWorldHeadlines();
