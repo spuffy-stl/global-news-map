@@ -77,6 +77,18 @@ def main():
             "inListFilter": {"values": EVENTS},
         }},
     })
+    # SMA-400: device + traffic-source visibility so mobile-UX and SEO-source
+    # decisions stop being guesses.
+    devices = run_report(token, pid, {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "deviceCategory"}],
+        "metrics": [{"name": "activeUsers"}, {"name": "sessions"}],
+    })
+    channels = run_report(token, pid, {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "sessionDefaultChannelGroup"}],
+        "metrics": [{"name": "sessions"}],
+    })
 
     days = rows(daily)
     tot = [0, 0, 0, 0]
@@ -103,6 +115,15 @@ def main():
     seen = {dims[0]: vals[0] for dims, vals in rows(events)}
     for ev in EVENTS:
         lines.append(f"- {ev}: {seen.get(ev, '0')}")
+    lines.append("")
+    lines.append("Device category (last 7 days):")
+    for dims, vals in sorted(rows(devices)):
+        lines.append(f"- {dims[0]}: {vals[0]} users, {vals[1]} sessions")
+    lines.append("")
+    lines.append("Traffic source, default channel group (last 7 days):")
+    chan_rows = sorted(rows(channels), key=lambda r: int(r[1][0]), reverse=True)
+    for dims, vals in chan_rows:
+        lines.append(f"- {dims[0]}: {vals[0]} sessions")
     print("\n".join(lines))
 
 
