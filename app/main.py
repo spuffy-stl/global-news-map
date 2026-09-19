@@ -1,7 +1,9 @@
 """FastAPI app: serves the map UI and the headlines JSON API."""
 import html
+import json
 import logging
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -20,6 +22,36 @@ log = logging.getLogger("global-news-map")
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 CONTINENT_SLUGS = {c["slug"] for c in config.CONTINENTS}
+
+
+def country_slug(admin):
+    """URL slug for a country ADMIN name. Mirrored client-side by countrySlug()
+    in app.js — keep the two in sync."""
+    return re.sub(r"[^a-z0-9]+", "-", admin.lower()).strip("-")
+
+
+# slug -> country dict, built once at import (slugs verified unique across the
+# 141-country taxonomy).
+_SLUG_TO_COUNTRY = {}
+for _cont, _region, _country in config.iter_countries():
+    _SLUG_TO_COUNTRY[country_slug(_country["name"])] = _country
+
+
+def _story_card(it):
+    title = html.escape(it.get("title") or "")
+    url = html.escape(it.get("url") or "#", quote=True)
+    source = html.escape(it.get("source") or "")
+    country = html.escape(it.get("country") or "")
+    when = html.escape(it.get("published_at") or it.get("fetched_at") or "")
+    summary = html.escape(it.get("summary") or "")
+    summary_html = f'<p class="summary">{summary}</p>' if summary else ""
+    return (
+        f'<article class="story">\n'
+        f'  <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>\n'
+        f'  <div class="meta">{source} · {country} · {when}</div>\n'
+        f"{summary_html}\n"
+        f"</article>"
+    )
 
 
 def run_crawl():
@@ -97,15 +129,69 @@ def ga4_snippet(measurement_id):
     )
 
 
+def _app_page(title=None, description=None, canonical_path="/",
+              initial_country=None, body_prefix=""):
+    """Render the interactive app shell with per-page head tags (SMA-380,
+    SMA-399). When initial_country (an ADMIN name) is given, the client boots
+    straight into that country view; body_prefix (e.g. a <noscript> headline
+    list) gives crawlers and no-JS readers content without JavaScript."""
+    page = (
+        INDEX_HTML.replace(
+            GA4_PLACEHOLDER,
+            ga4_snippet(config.GA_MEASUREMENT_ID) if config.GA_MEASUREMENT_ID else "",
+        )
+        .replace(APP_JS_TAG, APP_JS_TAG_VERSIONED)
+        .replace(STYLE_TAG, STYLE_TAG_VERSIONED)
+    )
+    if title:
+        page = page.replace(
+            "<title>Global News Map — Today's headlines from local news outlets worldwide</title>",
+            "<title>" + html.escape(title) + "</title>",
+        )
+        page = page.replace(
+            '<meta property="og:title" content="Global News Map — Today\'s headlines from local news outlets worldwide">',
+            '<meta property="og:title" content="' + html.escape(title, quote=True) + '">',
+        )
+        page = page.replace(
+            '<meta name="twitter:title" content="Global News Map — Today\'s headlines from local news outlets worldwide">',
+            '<meta name="twitter:title" content="' + html.escape(title, quote=True) + '">',
+        )
+    if description:
+        page = page.replace(
+            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta name="description" content="' + html.escape(description, quote=True) + '">',
+        )
+        page = page.replace(
+            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta property="og:description" content="' + html.escape(description, quote=True) + '">',
+        )
+        page = page.replace(
+            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta name="twitter:description" content="' + html.escape(description, quote=True) + '">',
+        )
+    canonical = "https://globalnewsmap.net" + canonical_path
+    page = page.replace(
+        '<link rel="canonical" href="https://globalnewsmap.net/">',
+        '<link rel="canonical" href="' + canonical + '">',
+    )
+    page = page.replace(
+        '<meta property="og:url" content="https://globalnewsmap.net/">',
+        '<meta property="og:url" content="' + canonical + '">',
+    )
+    if initial_country is not None:
+        page = page.replace(
+            '<script src="/static/vendor/d3.min.js">',
+            "<script>window.GNM_INITIAL_COUNTRY=" + json.dumps(initial_country) + ";</script>\n"
+            '<script src="/static/vendor/d3.min.js">',
+        )
+    if body_prefix:
+        page = page.replace("<body>", "<body>\n" + body_prefix, 1)
+    return page
+
+
 @app.get("/")
 def index():
-    # Inject the GA4 snippet only when a measurement ID is configured;
-    # otherwise the page loads with zero third-party requests.
-    html = INDEX_HTML.replace(
-        GA4_PLACEHOLDER,
-        ga4_snippet(config.GA_MEASUREMENT_ID) if config.GA_MEASUREMENT_ID else "",
-    ).replace(APP_JS_TAG, APP_JS_TAG_VERSIONED).replace(STYLE_TAG, STYLE_TAG_VERSIONED)
-    return HTMLResponse(html)
+    return HTMLResponse(_app_page())
 
 
 @app.get("/sitemap.xml")
@@ -116,9 +202,10 @@ def sitemap():
     st = db.get_status()
     lastmod = st.get("last_fetched") or datetime.now(timezone.utc).isoformat()
     base = "https://globalnewsmap.net"
+    country_paths = ["/country/" + slug for slug in sorted(_SLUG_TO_COUNTRY)]
     urls = "".join(
         f'  <url><loc>{base}{path}</loc><lastmod>{lastmod}</lastmod></url>\n'
-        for path in ("/", "/top")
+        for path in ["/", "/top"] + country_paths
     )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -134,22 +221,7 @@ def top_stories():
     """Server-rendered list of today's top headlines (SMA-394): crawlable
     without JavaScript, for SEO and for readers who just want the list."""
     items = db.get_top_headlines(50)
-    cards = []
-    for it in items:
-        title = html.escape(it.get("title") or "")
-        url = html.escape(it.get("url") or "#", quote=True)
-        source = html.escape(it.get("source") or "")
-        country = html.escape(it.get("country") or "")
-        when = html.escape(it.get("published_at") or it.get("fetched_at") or "")
-        summary = html.escape(it.get("summary") or "")
-        summary_html = f'<p class="summary">{summary}</p>' if summary else ""
-        cards.append(
-            f'<article class="story">\n'
-            f'  <h2><a href="{url}" target="_blank" rel="noopener">{title}</a></h2>\n'
-            f'  <div class="meta">{source} · {country} · {when}</div>\n'
-            f"{summary_html}\n"
-            f"</article>"
-        )
+    cards = [_story_card(it) for it in items]
     body = "\n".join(cards) or "<p>No headlines yet — the daily crawl is still running.</p>"
     page = f"""<!DOCTYPE html>
 <html lang="en">
@@ -180,6 +252,70 @@ footer {{ margin-top: 24px; font-size: 0.8rem; color: #666; }}
 </body>
 </html>"""
     return HTMLResponse(page)
+
+
+@app.get("/country/{slug}")
+def country_page(slug: str):
+    """Shareable deep link per country (SMA-399): the interactive app shell
+    with per-country <title>/meta/OG tags, a <noscript> server-rendered
+    headline list for crawlers and no-JS readers, and
+    window.GNM_INITIAL_COUNTRY so the client boots straight into the country
+    view (map zoom + story panel). The GA4 snippet (when configured) fires a
+    normal page_view, so deep-link landings are measurable per URL."""
+    country = _SLUG_TO_COUNTRY.get(slug)
+    if country is None:
+        return HTMLResponse(_country_not_found(slug), status_code=404)
+    admin = country["name"]
+    label = country.get("label") or admin
+    n_sources = len(country.get("sources") or [])
+    source_word = "outlet" if n_sources == 1 else "outlets"
+    title = f"{label} headlines today — Global News Map"
+    description = (
+        f"Today's top headlines from {n_sources} local news {source_word} in {label}, "
+        "updated daily by the Global News Map."
+    )
+    items = db.get_headlines("country", admin, 15)
+    cards = "\n".join(_story_card(it) for it in items) or (
+        f"<p>No headlines yet for {html.escape(label)} — the daily crawl is still running.</p>"
+    )
+    noscript = (
+        '<noscript><main class="noscript-country">\n'
+        f"<h1>{html.escape(label)} headlines</h1>\n"
+        f"{cards}\n"
+        '<p><a href="/">Back to the interactive world map</a></p>\n'
+        "</main></noscript>"
+    )
+    return HTMLResponse(
+        _app_page(
+            title=title,
+            description=description,
+            canonical_path="/country/" + slug,
+            initial_country=admin,
+            body_prefix=noscript,
+        )
+    )
+
+
+def _country_not_found(slug):
+    safe = html.escape(slug)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Country not found — Global News Map</title>
+<meta name="robots" content="noindex">
+<style>
+body {{ font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 48px 16px; color: #1a1a1a; }}
+a {{ color: #0b5fff; }}
+</style>
+</head>
+<body>
+<h1>🌐 Hmm, no country page for “{safe}”</h1>
+<p>That link doesn’t match any of the 141 countries on the map. It may be a typo, or the page moved.</p>
+<p><a href="/">Back to the world map</a> · <a href="/top">Today’s top headlines</a></p>
+</body>
+</html>"""
 
 
 @app.get("/api/hierarchy")

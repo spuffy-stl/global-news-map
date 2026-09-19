@@ -86,6 +86,20 @@
     });
   }
 
+  // Country URL slugs (SMA-399): mirror of country_slug() in app/main.py —
+  // keep the two in sync. selectCountry() pushes /country/<slug> into the
+  // URL via the History API; loading that URL deep-links into the country
+  // view (the server injects window.GNM_INITIAL_COUNTRY for the first load).
+  function countrySlug(admin) {
+    return String(admin).toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function setPath(path) {
+    try { window.history.replaceState(null, "", path); } catch (e) { /* sandboxed — ignore */ }
+  }
+
   function relTime(iso) {
     if (!iso) return "";
     var t = new Date(iso).getTime();
@@ -410,6 +424,7 @@
     active = { continent: null, region: null, country: null };
     markActive();
     trackEvent("select_world");
+    setPath("/");
     svg.transition().duration(450).call(mapZoom.transform, d3.zoomIdentity);
     loadWorldHeadlines();
   }
@@ -420,6 +435,7 @@
     active = { continent: slug, region: null, country: null };
     markActive();
     trackEvent("select_continent", { continent: slug });
+    setPath("/");
     if (zoom) zoomTo(c.lon, c.lat, Z_REGION + 0.3);
     panelTitle.textContent = c.name;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
@@ -441,6 +457,7 @@
     active = { continent: contSlug, region: slug, country: null };
     markActive();
     trackEvent("select_region", { region: slug });
+    setPath("/");
     if (zoom && r.lat != null) zoomTo(r.lon, r.lat, Z_COUNTRY + 0.3);
     panelTitle.textContent = r.name;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
@@ -462,6 +479,7 @@
     active = { continent: f.continent.slug, region: f.region.slug, country: admin };
     markActive();
     trackEvent("select_country", { country: admin });
+    setPath("/country/" + countrySlug(admin));
     if (zoom && f.country.lat != null) zoomTo(f.country.lon, f.country.lat, Math.max(d3.zoomTransform(svg.node()).k, 5));
     var ct = f.country;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
@@ -690,7 +708,26 @@
     buildSearchIndex();
     drawMap();
     drawNav();
-    loadWorldHeadlines();
+    // SMA-399 deep link: a /country/<slug> load boots straight into that
+    // country's view (map zoom + story panel). The server injects
+    // window.GNM_INITIAL_COUNTRY for those loads; the pathname fallback
+    // covers in-app history entries.
+    var initialCountry = window.GNM_INITIAL_COUNTRY || null;
+    if (!initialCountry) {
+      var pm = /^\/country\/([a-z0-9-]+)\/?$/.exec(window.location.pathname || "");
+      if (pm) {
+        var want = pm[1];
+        continents.forEach(function (c) {
+          c.regions.forEach(function (r) {
+            r.countries.forEach(function (ct) {
+              if (countrySlug(ct.name) === want) initialCountry = ct.name;
+            });
+          });
+        });
+      }
+    }
+    if (initialCountry && findCountry(initialCountry)) selectCountry(initialCountry, true);
+    else loadWorldHeadlines();
     refreshStatus();
     setInterval(refreshStatus, 60000);
   }).catch(function (err) {
