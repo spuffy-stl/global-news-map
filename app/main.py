@@ -130,7 +130,7 @@ def ga4_snippet(measurement_id):
 
 
 def _app_page(title=None, description=None, canonical_path="/",
-              initial_country=None, body_prefix=""):
+              initial_country=None, body_prefix="", head_extra=""):
     """Render the interactive app shell with per-page head tags (SMA-380,
     SMA-399). When initial_country (an ADMIN name) is given, the client boots
     straight into that country view; body_prefix (e.g. a <noscript> headline
@@ -184,6 +184,8 @@ def _app_page(title=None, description=None, canonical_path="/",
             "<script>window.GNM_INITIAL_COUNTRY=" + json.dumps(initial_country) + ";</script>\n"
             '<script src="/static/vendor/d3.min.js">',
         )
+    if head_extra:
+        page = page.replace("</head>", head_extra + "\n</head>", 1)
     if body_prefix:
         page = page.replace("<body>", "<body>\n" + body_prefix, 1)
     return page
@@ -254,6 +256,32 @@ footer {{ margin-top: 24px; font-size: 0.8rem; color: #666; }}
     return HTMLResponse(page)
 
 
+def _newsarticle_jsonld(items):
+    """NewsArticle structured data for SEO (SMA-446): an ItemList of the ~15
+    stories rendered on a /country/<slug> page so search engines can show
+    rich results. Capped at the rendered set — no extra payload."""
+    elements = []
+    for pos, it in enumerate(items, start=1):
+        item = {"@type": "NewsArticle", "headline": it.get("title") or ""}
+        if it.get("url"):
+            item["url"] = it["url"]
+        when = it.get("published_at") or it.get("fetched_at")
+        if when:
+            item["datePublished"] = when
+        if it.get("source"):
+            item["publisher"] = {"@type": "Organization", "name": it["source"]}
+        elements.append({"@type": "ListItem", "position": pos, "item": item})
+    payload = {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "itemListElement": elements,
+    }
+    # Escape "</" so a headline containing "</script>" can never break out of
+    # the script tag (valid JSON escape).
+    data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+    return '<script type="application/ld+json">\n' + data + "\n</script>"
+
+
 @app.get("/country/{slug}")
 def country_page(slug: str):
     """Shareable deep link per country (SMA-399): the interactive app shell
@@ -292,6 +320,7 @@ def country_page(slug: str):
             canonical_path="/country/" + slug,
             initial_country=admin,
             body_prefix=noscript,
+            head_extra=_newsarticle_jsonld(items),
         )
     )
 

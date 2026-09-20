@@ -234,6 +234,8 @@ body {
 .panel::-webkit-scrollbar-track { background: transparent; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; }
 .panel-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.01em; }
+.panel-actions { display: flex; gap: 8px; align-items: center; }
+#shareBtn.hidden { display: none; }
 .panel-meta { font-size: 12.5px; color: var(--muted); margin: 7px 0 14px; letter-spacing: 0.01em; }
 .hint { color: var(--muted); font-size: 14px; line-height: 1.55; }
 
