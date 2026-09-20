@@ -25,6 +25,7 @@
   var chipsEl = document.getElementById("chips");
   var refreshBtn = document.getElementById("refreshBtn");
   var panelClose = document.getElementById("panelClose");
+  var shareBtn = document.getElementById("shareBtn");
   var zoomResetBtn = document.getElementById("zoomReset");
   var zoomTipEl = document.getElementById("zoomTip");
   var freshBadge = document.getElementById("freshBadge");
@@ -99,6 +100,58 @@
   function setPath(path) {
     try { window.history.replaceState(null, "", path); } catch (e) { /* sandboxed — ignore */ }
   }
+
+  // Story-panel share button (SMA-445): visible only on a country view, shares
+  // the canonical /country/<slug> URL — Web Share API on mobile, clipboard
+  // fallback with a "Copied" confirmation on desktop.
+  var CANONICAL_BASE = "https://globalnewsmap.net";
+  var shareCountry = null; // {label, slug}
+  function setShareCountry(label, admin) {
+    if (label && admin) {
+      shareCountry = { label: label, slug: countrySlug(admin) };
+      shareBtn.classList.remove("hidden");
+    } else {
+      shareCountry = null;
+      shareBtn.classList.add("hidden");
+    }
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        if (ok) resolve(); else reject(new Error("execCommand copy failed"));
+      } catch (e) { reject(e); }
+    });
+  }
+  shareBtn.addEventListener("click", function () {
+    if (!shareCountry) return;
+    var url = CANONICAL_BASE + "/country/" + shareCountry.slug;
+    var title = shareCountry.label + " headlines -- Global News Map";
+    if (navigator.share) {
+      navigator.share({ title: title, text: title, url: url }).then(function () {
+        trackEvent("share_country", { method: "webshare", country: shareCountry.slug });
+      }, function () { /* dismissed — not a share */ });
+      return;
+    }
+    copyText(url).then(function () {
+      shareBtn.textContent = "✓ Copied";
+      setTimeout(function () { shareBtn.textContent = "↗ Share"; }, 2000);
+      trackEvent("share_country", { method: "clipboard", country: shareCountry.slug });
+    }, function () {
+      window.prompt("Copy this link:", url);
+      trackEvent("share_country", { method: "prompt", country: shareCountry.slug });
+    });
+  });
 
   function relTime(iso) {
     if (!iso) return "";
@@ -405,6 +458,7 @@
     // starts with clickable headlines (SMA-366).
     panelTitle.textContent = "Top stories right now";
     panelMeta.textContent = "";
+    setShareCountry(null, null);
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
     fetch("/api/top-headlines?limit=15")
       .then(function (r) { return r.json(); })
@@ -436,6 +490,7 @@
     markActive();
     trackEvent("select_continent", { continent: slug });
     setPath("/");
+    setShareCountry(null, null);
     if (zoom) zoomTo(c.lon, c.lat, Z_REGION + 0.3);
     panelTitle.textContent = c.name;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
@@ -458,6 +513,7 @@
     markActive();
     trackEvent("select_region", { region: slug });
     setPath("/");
+    setShareCountry(null, null);
     if (zoom && r.lat != null) zoomTo(r.lon, r.lat, Z_COUNTRY + 0.3);
     panelTitle.textContent = r.name;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
@@ -480,6 +536,7 @@
     markActive();
     trackEvent("select_country", { country: admin });
     setPath("/country/" + countrySlug(admin));
+    setShareCountry(f.country.label, admin);
     if (zoom && f.country.lat != null) zoomTo(f.country.lon, f.country.lat, Math.max(d3.zoomTransform(svg.node()).k, 5));
     var ct = f.country;
     storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
