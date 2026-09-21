@@ -19,7 +19,8 @@ from gauth import get_token
 CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 BASE = "https://analyticsdata.googleapis.com/v1beta"
 SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
-EVENTS = ["select_region", "click_story", "refresh_headlines"]
+EVENTS = ["select_region", "click_story", "refresh_headlines",
+          "stories_shown"]  # SMA-460: impression events for story CTR
 
 
 def run_report(token, property_id, body):
