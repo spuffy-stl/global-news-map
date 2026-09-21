@@ -23,7 +23,6 @@
   var panelMeta = document.getElementById("panelMeta");
   var updatedEl = document.getElementById("updated");
   var chipsEl = document.getElementById("chips");
-  var refreshBtn = document.getElementById("refreshBtn");
   var panelClose = document.getElementById("panelClose");
   var shareBtn = document.getElementById("shareBtn");
   var zoomResetBtn = document.getElementById("zoomReset");
@@ -575,38 +574,11 @@
       .catch(function () { updatedEl.textContent = "status unavailable"; return null; });
   }
 
-  refreshBtn.addEventListener("click", function () {
-    // SMA-392: no longer triggers a crawl (POST /api/refresh was unthrottled
-    // and unused). Just re-fetch headlines for the current view in place.
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = "⟳ Checking…";
-    trackEvent("refresh_headlines");
-    refreshStatus().then(function (before) {
-      if (active.country) selectCountry(active.country, false);
-      else if (active.region) selectRegion(active.continent, active.region, false);
-      else if (active.continent) selectContinent(active.continent, false);
-      else loadWorldHeadlines();
-      // Give the headline fetch a moment, then update the status stamp.
-      setTimeout(function () {
-        refreshStatus().then(function (latest) {
-          if (before && latest && latest > before) {
-            freshBadge.textContent = "New headlines — updated just now";
-            freshBadge.classList.remove("hidden");
-          } else {
-            refreshBtn.textContent = "✓ Up to date";
-            setTimeout(function () {
-              if (!refreshBtn.disabled) refreshBtn.textContent = "⟳ Refresh";
-            }, 2000);
-          }
-          refreshBtn.disabled = false;
-          if (refreshBtn.textContent === "⟳ Checking…") refreshBtn.textContent = "⟳ Refresh";
-        });
-      }, 2500);
-    }).catch(function () {
-      refreshBtn.disabled = false;
-      refreshBtn.textContent = "⟳ Refresh";
-    });
-  });
+  // SMA-487: the Refresh button is gone (refresh_headlines=0 in 7d across
+  // 68 sessions). Freshness stays passive: refreshStatus() keeps the
+  // "Updated ..." line current on load + every 60s, and freshBadge covers
+  // new-arrival discovery.
+
 
   panelClose.addEventListener("click", goWorld);
   freshBadge.addEventListener("click", function () {
