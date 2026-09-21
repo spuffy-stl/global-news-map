@@ -433,7 +433,10 @@
     );
   }
 
-  function renderStories(title, meta, items, extraHTML) {
+  // SMA-460: fire a per-render impression event so story CTR
+  // (click_story / stories_shown) is measurable per view level.
+  // One event per panel render, not per card, to avoid event spam.
+  function renderStories(level, title, meta, items, extraHTML) {
     panelTitle.textContent = title;
     panelMeta.textContent = meta;
     var html = extraHTML || "";
@@ -443,6 +446,7 @@
       html += items.map(storyCard).join("");
     }
     storiesEl.innerHTML = html;
+    trackEvent("stories_shown", { level: level, count: items.length });
     if (window.innerWidth <= 900) {
       document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
@@ -465,7 +469,7 @@
       .then(function (items) {
         var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
         updateFreshBadge(items);
-        renderStories("Top stories right now",
+        renderStories("world", "Top stories right now",
           items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
           items, hint);
       })
@@ -497,7 +501,7 @@
     panelMeta.textContent = "";
     fetchHeadlines("continent=" + encodeURIComponent(slug))
       .then(function (items) {
-        renderStories(c.name,
+        renderStories("continent", c.name,
           continentStories(c) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
           items);
       })
@@ -520,7 +524,7 @@
     panelMeta.textContent = "";
     fetchHeadlines("region=" + encodeURIComponent(slug))
       .then(function (items) {
-        renderStories(r.name,
+        renderStories("region", r.name,
           regionStories(r) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
           items);
       })
@@ -548,7 +552,7 @@
             ct.sources.map(function (s) { return "<span class=\"source-tag\">" + esc(s) + "</span>"; }).join(" ") +
             "</div>"
           : "";
-        renderStories(ct.label,
+        renderStories("country", ct.label,
           (ct.stories || items.length) + " stories · " + f.region.name,
           items, sources);
       })
