@@ -1,0 +1,40 @@
+# Global News Map
+
+> Today's headlines from local news outlets worldwide, on an interactive map.
+> 233 validated RSS feeds across 141 countries, grouped continent > region >
+> country > news sources. Headlines refresh daily (~06:20 America/Los_Angeles).
+
+## What it is
+
+An interactive world map where clicking a continent, region, or country shows
+the latest headlines from that place's local news outlets. Every headline
+links out to the original publisher article.
+
+- Interactive map: https://globalnewsmap.net/
+- Plain headline list (no JavaScript needed): https://globalnewsmap.net/top
+- Per-country shareable pages: https://globalnewsmap.net/country/<slug>
+  (e.g. https://globalnewsmap.net/country/south-korea)
+
+## Data API (JSON, no key required)
+
+- GET /api/top-headlines?limit=15 — freshest headlines worldwide (max 50)
+- GET /api/headlines?continent=<slug>&limit=15 — e.g. ?continent=europe
+- GET /api/headlines?region=<slug>&limit=15 — e.g. ?region=southeast-asia
+- GET /api/headlines?country=<admin-name>&limit=15 — e.g. ?country=South%20Korea
+- GET /api/hierarchy — the continent > region > country > sources tree
+- GET /api/status — crawl health: story counts and last fetch time per continent
+
+Each headline object has: title, url, source (outlet name), summary (when the
+feed provides one), published_at, fetched_at.
+
+## Attribution
+
+Headlines belong to their publishers. When citing a story, link to the
+headline's `url` (the original article), and name the outlet from `source`.
+
+## Limits
+
+- Headlines update once daily; "today" means the most recent daily crawl.
+- Three countries have no local feed coverage by editorial choice (Bahrain,
+  Mongolia, North Korea) and show no headlines.
+- Summaries are only present when the source RSS feed includes them.

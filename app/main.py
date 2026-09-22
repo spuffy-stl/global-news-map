@@ -218,6 +218,21 @@ def sitemap():
     return Response(content=xml, media_type="application/xml")
 
 
+LLMS_TXT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "llms.txt")
+
+
+@app.get("/llms.txt")
+def llms_txt():
+    """Plain-text site summary for AI assistants (GEO): what the service is,
+    the JSON API surface, and attribution rules."""
+    try:
+        with open(LLMS_TXT_PATH, encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        raise HTTPException(status_code=404, detail="llms.txt not found")
+    return Response(content=text, media_type="text/plain; charset=utf-8")
+
+
 @app.get("/top")
 def top_stories():
     """Server-rendered list of today's top headlines (SMA-394): crawlable

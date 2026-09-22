@@ -20,7 +20,10 @@ CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 BASE = "https://analyticsdata.googleapis.com/v1beta"
 SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 EVENTS = ["select_region", "click_story", "refresh_headlines",
-          "stories_shown"]  # SMA-460: impression events for story CTR
+          "stories_shown",  # SMA-460: impression events for story CTR
+          "share_country",  # SMA-445: share-button usage
+          "select_world", "select_continent", "select_country",
+          ]  # SMA-489: full drill-down funnel per view level
 
 
 def run_report(token, property_id, body):
