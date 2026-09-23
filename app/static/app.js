@@ -31,23 +31,45 @@
 
   // Returning-visitor hook (SMA-381): show "N new since your last visit" on the
   // world view so repeat visitors see the daily crawl is producing fresh value.
+  // SMA-497: measurability for the return hook. A returning visitor is anyone
+  // with a recorded previous visit; on their first world view of the session
+  // we fire return_visit {hours_away, new_count} so the hook's reach is
+  // queryable in GA4, and a click on the badge fires return_badge_click.
+  // lastVisitTs is also used for the NEW dots on story cards.
+  var lastVisitTs = 0;
+  var returnVisitFired = false;
+  try { lastVisitTs = parseInt(window.localStorage.getItem("gnm_last_visit") || "0", 10) || 0; } catch (e) {}
+  function isNewStory(s) {
+    if (!lastVisitTs) return false;
+    var t = Date.parse(s.published_at || s.fetched_at || "");
+    return !!(t && t > lastVisitTs);
+  }
   function updateFreshBadge(items) {
     try {
       var now = Date.now();
-      var last = parseInt(window.localStorage.getItem("gnm_last_visit") || "0", 10);
-      if (last > 0) {
-        var n = items.filter(function (s) {
-          var t = Date.parse(s.published_at || s.fetched_at || "");
-          return t && t > last;
-        }).length;
+      var last = lastVisitTs;
+      if (last > 0 && !returnVisitFired) {
+        returnVisitFired = true;
+        var n = items.filter(isNewStory).length;
+        trackEvent("return_visit", {
+          hours_away: Math.round((now - last) / 3600000),
+          new_count: n
+        });
         if (n > 0) {
           freshBadge.textContent = n + " new since your last visit";
           freshBadge.classList.remove("hidden");
         }
       }
       window.localStorage.setItem("gnm_last_visit", String(now));
+      // NOTE: lastVisitTs intentionally keeps the *previous* visit's timestamp
+      // for the rest of this session, so NEW dots stay correct on drill-down
+      // views; only the stored value moves forward.
     } catch (e) { /* storage unavailable (private mode) — skip silently */ }
   }
+  freshBadge.addEventListener("click", function () {
+    trackEvent("return_badge_click", {});
+    freshBadge.classList.add("hidden");
+  });
 
   var continents = [];
   var active = { continent: null, region: null, country: null }; // slugs / ADMIN
@@ -411,6 +433,30 @@
   }
 
   // ---------------------------------------------------------------------------
+  // SMA-496: sub-level drill chips inside story panels. The next drill level
+  // is one tap away from where the user already is — no map manipulation
+  // needed (continent panels get region chips, region panels get country
+  // chips). Reuses the existing .chip styling.
+  // ---------------------------------------------------------------------------
+  function subDrillChipsHTML(items, kind) {
+    if (!items || !items.length) return "";
+    var btns = items.map(function (it) {
+      var label = kind === "region" ? it.name : (it.label || it.name);
+      var key = kind === "region" ? it.slug : it.name;
+      return '<button type="button" class="chip sub" data-drill-kind="' + kind +
+        '" data-drill-key="' + esc(key) + '">' + esc(label) + "</button>";
+    }).join("");
+    return '<div class="drill-row" aria-label="Drill down"><span class="drill-label">Drill down:</span>' + btns + "</div>";
+  }
+  function bindSubDrillChips(onTap) {
+    storiesEl.querySelectorAll("[data-drill-key]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        onTap(b.getAttribute("data-drill-kind"), b.getAttribute("data-drill-key"));
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Panel
   // ---------------------------------------------------------------------------
   function storyCard(s) {
@@ -423,7 +469,7 @@
     } catch (e) { /* leave favicon empty on unparseable URL */ }
     return (
       '<article class="story" data-source="' + esc(s.source || "") + '">' +
-        '<h3>' + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
+        '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
         "<span>" + esc(pub) + "</span>" +
@@ -502,7 +548,8 @@
       .then(function (items) {
         renderStories("continent", c.name,
           continentStories(c) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
-          items);
+          items, subDrillChipsHTML(c.regions, "region"));
+        bindSubDrillChips(function (kind, key) { selectRegion(slug, key, true); });
       })
       .catch(function () {
         storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
@@ -523,9 +570,11 @@
     panelMeta.textContent = "";
     fetchHeadlines("region=" + encodeURIComponent(slug))
       .then(function (items) {
+        var drillCountries = (r.countries || []).filter(function (ct) { return ct.stories > 0; });
         renderStories("region", r.name,
           regionStories(r) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
-          items);
+          items, subDrillChipsHTML(drillCountries, "country"));
+        bindSubDrillChips(function (kind, key) { selectCountry(key, true); });
       })
       .catch(function () {
         storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
