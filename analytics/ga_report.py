@@ -23,6 +23,7 @@ EVENTS = ["select_region", "click_story", "refresh_headlines",
           "stories_shown",  # SMA-460: impression events for story CTR
           "share_country",  # SMA-445: share-button usage
           "select_world", "select_continent", "select_country",
+          "return_visit", "return_badge_click",  # SMA-497: return-hook reach
           ]  # SMA-489: full drill-down funnel per view level
 
 
@@ -93,6 +94,16 @@ def main():
         "dimensions": [{"name": "sessionDefaultChannelGroup"}],
         "metrics": [{"name": "sessions"}],
     })
+    # SMA-498: which pages pull organic/AI-assistant traffic — needed to judge
+    # whether the country SEO pages (SMA-399) and llms.txt (SMA-494) earn
+    # their keep or whether it is all the homepage.
+    landing = run_report(token, pid, {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "sessionDefaultChannelGroup"}, {"name": "landingPage"}],
+        "metrics": [{"name": "sessions"}, {"name": "engagedSessions"}],
+        "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}],
+        "limit": 10,
+    })
 
     days = rows(daily)
     tot = [0, 0, 0, 0]
@@ -113,7 +124,8 @@ def main():
     lines.append("")
     lines.append("New vs returning (last 7 days):")
     for dims, vals in rows(new_ret):
-        lines.append(f"- {dims[0]}: {vals[0]} users")
+        label = dims[0] or "(unassigned)"  # SMA-498: GA returns a blank label row
+        lines.append(f"- {label}: {vals[0]} users")
     lines.append("")
     lines.append("Custom events (last 7 days):")
     seen = {dims[0]: vals[0] for dims, vals in rows(events)}
@@ -128,6 +140,10 @@ def main():
     chan_rows = sorted(rows(channels), key=lambda r: int(r[1][0]), reverse=True)
     for dims, vals in chan_rows:
         lines.append(f"- {dims[0]}: {vals[0]} sessions")
+    lines.append("")
+    lines.append("Top landing pages by channel (last 7 days):")
+    for dims, vals in rows(landing):
+        lines.append(f"- {dims[0]} · {dims[1]}: {vals[0]} sessions, {vals[1]} engaged")
     print("\n".join(lines))
 
 
