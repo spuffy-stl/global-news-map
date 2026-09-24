@@ -33,8 +33,65 @@ def country_slug(admin):
 # slug -> country dict, built once at import (slugs verified unique across the
 # 141-country taxonomy).
 _SLUG_TO_COUNTRY = {}
+# slug -> (continent_dict, region_dict) for breadcrumb/prev-next nav (SMA-505).
+_SLUG_TO_PLACE = {}
 for _cont, _region, _country in config.iter_countries():
-    _SLUG_TO_COUNTRY[country_slug(_country["name"])] = _country
+    _slug = country_slug(_country["name"])
+    _SLUG_TO_COUNTRY[_slug] = _country
+    _SLUG_TO_PLACE[_slug] = (_cont, _region)
+
+
+def _country_label(country):
+    return country.get("label") or country["name"]
+
+
+def _country_nav(slug):
+    """Server-rendered breadcrumb + prev/next pager for /country/<slug> (SMA-505).
+
+    The client-side breadcrumb is made of <button>s, so it is invisible to
+    crawlers and useless to a visitor who lands directly on the page. These
+    real <a> links give organic landings an onward path (within the same
+    region) and give crawlers internal links between the 141 country pages.
+    """
+    cont, region = _SLUG_TO_PLACE[slug]
+    siblings = region["countries"]
+    idx = next(i for i, c in enumerate(siblings) if country_slug(c["name"]) == slug)
+    country = siblings[idx]
+    prev_c = siblings[idx - 1] if idx > 0 else None
+    next_c = siblings[idx + 1] if idx < len(siblings) - 1 else None
+
+    def country_link(c, rel_text):
+        c_slug = country_slug(c["name"])
+        return (
+            f'<a class="crumb" href="/country/{c_slug}" rel="{rel_text}">'
+            f"{html.escape(rel_text.title(), quote=True)} · {html.escape(_country_label(c))}</a>"
+        )
+
+    pager = ""
+    if prev_c or next_c:
+        parts = []
+        if prev_c:
+            parts.append(country_link(prev_c, "prev"))
+        parts.append(f'<span class="crumb current">{html.escape(_country_label(country))}</span>')
+        if next_c:
+            parts.append(country_link(next_c, "next"))
+        pager = (
+            '<span class="pager" aria-label="More countries in this region">'
+            + '<span class="crumb-sep">|</span>'.join(parts)
+            + "</span>"
+        )
+    return (
+        '<nav class="country-nav" aria-label="Country navigation">'
+        '<span class="breadcrumb">'
+        '<a class="crumb" href="/">🌐 World</a>'
+        '<span class="crumb-sep">›</span>'
+        f'<span class="crumb current">{html.escape(region["name"])}</span>'
+        '<span class="crumb-sep">›</span>'
+        f'<span class="crumb current">{html.escape(_country_label(country))}</span>'
+        "</span>"
+        + pager
+        + "</nav>"
+    )
 
 
 def _story_card(it):
@@ -328,13 +385,17 @@ def country_page(slug: str):
         '<p><a href="/">Back to the interactive world map</a></p>\n'
         "</main></noscript>"
     )
+    # SMA-505: server-rendered breadcrumb + prev/next links. Real <a> tags
+    # (the client's breadcrumb is buttons, invisible to crawlers) so organic
+    # landings have an onward path and crawlers can follow country pages.
+    nav = _country_nav(slug)
     return HTMLResponse(
         _app_page(
             title=title,
             description=description,
             canonical_path="/country/" + slug,
             initial_country=admin,
-            body_prefix=noscript,
+            body_prefix=nav + noscript,
             head_extra=_newsarticle_jsonld(items),
         )
     )

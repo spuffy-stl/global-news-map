@@ -200,6 +200,16 @@ body {
 .crumb:hover { text-decoration: underline; }
 .crumb.current { color: var(--ink); cursor: default; }
 .crumb-sep { color: var(--faint); font-size: 13px; }
+/* Server-rendered country-page nav (SMA-505): reuses .crumb styling but with
+   real links so crawlers and organic landings get onward paths. */
+.country-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px; padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.country-nav .breadcrumb { margin: 0; }
+.country-nav a.crumb { text-decoration: none; }
+.country-nav .pager { display: flex; align-items: center; gap: 10px; }
 .chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   --chip-color: var(--accent);
