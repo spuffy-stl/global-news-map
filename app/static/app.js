@@ -793,8 +793,10 @@
     // SMA-399 deep link: a /country/<slug> load boots straight into that
     // country's view (map zoom + story panel). The server injects
     // window.GNM_INITIAL_COUNTRY for those loads; the pathname fallback
-    // covers in-app history entries.
+    // covers in-app history entries. SMA-511 adds the same for
+    // /region/<slug> via window.GNM_INITIAL_REGION ([contSlug, regionSlug]).
     var initialCountry = window.GNM_INITIAL_COUNTRY || null;
+    var initialRegion = window.GNM_INITIAL_REGION || null;
     if (!initialCountry) {
       var pm = /^\/country\/([a-z0-9-]+)\/?$/.exec(window.location.pathname || "");
       if (pm) {
@@ -808,7 +810,24 @@
         });
       }
     }
+    if (!initialRegion) {
+      var rpm = /^\/region\/([a-z0-9-]+)\/?$/.exec(window.location.pathname || "");
+      if (rpm) {
+        var rwant = rpm[1];
+        continents.forEach(function (c) {
+          c.regions.forEach(function (r) {
+            if (r.slug === rwant) initialRegion = [c.slug, r.slug];
+          });
+        });
+      }
+    }
     if (initialCountry && findCountry(initialCountry)) selectCountry(initialCountry, true);
+    else if (initialRegion && findRegion(initialRegion[0], initialRegion[1])) {
+      selectRegion(initialRegion[0], initialRegion[1], true);
+      // selectRegion() resets the path to "/"; restore the deep-link URL so
+      // the region page stays shareable and canonical in the address bar.
+      setPath("/region/" + initialRegion[1]);
+    }
     else loadWorldHeadlines();
     refreshStatus();
     setInterval(refreshStatus, 60000);

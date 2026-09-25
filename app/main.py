@@ -40,6 +40,14 @@ for _cont, _region, _country in config.iter_countries():
     _SLUG_TO_COUNTRY[_slug] = _country
     _SLUG_TO_PLACE[_slug] = (_cont, _region)
 
+# region slug -> (continent_dict, region_dict), built once at import (slugs
+# verified unique across the 22-region taxonomy; SMA-511).
+_SLUG_TO_REGION = {}
+for _cont in config.CONTINENTS:
+    for _region in _cont.get("regions", []):
+        assert _region["slug"] not in _SLUG_TO_REGION, _region["slug"]
+        _SLUG_TO_REGION[_region["slug"]] = (_cont, _region)
+
 
 def _country_label(country):
     return country.get("label") or country["name"]
@@ -187,11 +195,12 @@ def ga4_snippet(measurement_id):
 
 
 def _app_page(title=None, description=None, canonical_path="/",
-              initial_country=None, body_prefix="", head_extra=""):
+              initial_country=None, initial_region=None, body_prefix="", head_extra=""):
     """Render the interactive app shell with per-page head tags (SMA-380,
     SMA-399). When initial_country (an ADMIN name) is given, the client boots
-    straight into that country view; body_prefix (e.g. a <noscript> headline
-    list) gives crawlers and no-JS readers content without JavaScript."""
+    straight into that country view; initial_region (a (cont_slug, region_slug)
+    pair, SMA-511) boots into a region view; body_prefix (e.g. a <noscript>
+    headline list) gives crawlers and no-JS readers content without JavaScript."""
     page = (
         INDEX_HTML.replace(
             GA4_PLACEHOLDER,
@@ -241,6 +250,12 @@ def _app_page(title=None, description=None, canonical_path="/",
             "<script>window.GNM_INITIAL_COUNTRY=" + json.dumps(initial_country) + ";</script>\n"
             '<script src="/static/vendor/d3.min.js">',
         )
+    if initial_region is not None:
+        page = page.replace(
+            '<script src="/static/vendor/d3.min.js">',
+            "<script>window.GNM_INITIAL_REGION=" + json.dumps(list(initial_region)) + ";</script>\n"
+            '<script src="/static/vendor/d3.min.js">',
+        )
     if head_extra:
         page = page.replace("</head>", head_extra + "\n</head>", 1)
     if body_prefix:
@@ -262,9 +277,10 @@ def sitemap():
     lastmod = st.get("last_fetched") or datetime.now(timezone.utc).isoformat()
     base = "https://globalnewsmap.net"
     country_paths = ["/country/" + slug for slug in sorted(_SLUG_TO_COUNTRY)]
+    region_paths = ["/region/" + slug for slug in sorted(_SLUG_TO_REGION)]
     urls = "".join(
         f'  <url><loc>{base}{path}</loc><lastmod>{lastmod}</lastmod></url>\n'
-        for path in ["/", "/top"] + country_paths
+        for path in ["/", "/top"] + country_paths + region_paths
     )
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -399,6 +415,117 @@ def country_page(slug: str):
             head_extra=_newsarticle_jsonld(items),
         )
     )
+
+
+def _region_nav(cont, region):
+    """Server-rendered breadcrumb + prev/next pager for /region/<slug>
+    (SMA-511). Mirrors _country_nav (SMA-505): real <a> tags so organic
+    landings have an onward path and crawlers can follow the region pages."""
+    siblings = cont.get("regions", [])
+    idx = next(i for i, r in enumerate(siblings) if r["slug"] == region["slug"])
+    prev_r = siblings[idx - 1] if idx > 0 else None
+    next_r = siblings[idx + 1] if idx < len(siblings) - 1 else None
+
+    def region_link(r, rel_text):
+        return (
+            f'<a class="crumb" href="/region/{r["slug"]}" rel="{rel_text}">'
+            f"{html.escape(rel_text.title(), quote=True)} · {html.escape(r.get('name') or r['slug'])}</a>"
+        )
+
+    pager = ""
+    if prev_r or next_r:
+        parts = []
+        if prev_r:
+            parts.append(region_link(prev_r, "prev"))
+        parts.append(f'<span class="crumb current">{html.escape(region.get("name") or region["slug"])}</span>')
+        if next_r:
+            parts.append(region_link(next_r, "next"))
+        pager = (
+            '<span class="pager" aria-label="More regions on this continent">'
+            + '<span class="crumb-sep">|</span>'.join(parts)
+            + "</span>"
+        )
+    return (
+        '<nav class="country-nav" aria-label="Region navigation">'
+        '<span class="breadcrumb">'
+        '<a class="crumb" href="/">🌐 World</a>'
+        '<span class="crumb-sep">›</span>'
+        f'<span class="crumb current">{html.escape(cont.get("name") or cont["slug"])}</span>'
+        '<span class="crumb-sep">›</span>'
+        f'<span class="crumb current">{html.escape(region.get("name") or region["slug"])}</span>'
+        "</span>"
+        + pager
+        + "</nav>"
+    )
+
+
+@app.get("/region/{slug}")
+def region_page(slug: str):
+    """Shareable deep link per region (SMA-511): same pattern as the
+    /country/<slug> pages (SMA-399) — the interactive app shell with
+    per-region <title>/meta/OG tags, a <noscript> server-rendered headline
+    list for crawlers and no-JS readers, and window.GNM_INITIAL_REGION so
+    the client boots straight into the region view. Region-level pages target
+    the broad queries people type (e.g. 'southeast asia news'); organic
+    search sessions engage at 60% (6 of 10 in the 7d before launch)."""
+    place = _SLUG_TO_REGION.get(slug)
+    if place is None:
+        return HTMLResponse(_region_not_found(slug), status_code=404)
+    cont, region = place
+    region_name = region.get("name") or slug
+    countries = region.get("countries", [])
+    n_countries = len(countries)
+    n_sources = sum(len(c.get("sources") or []) for c in countries)
+    source_word = "outlet" if n_sources == 1 else "outlets"
+    title = f"{region_name} headlines today — Global News Map"
+    description = (
+        f"Today's top headlines from {n_sources} local news {source_word} "
+        f"across {n_countries} countries in {region_name}, updated daily by the Global News Map."
+    )
+    items = db.get_headlines("region", slug, 15)
+    cards = "\n".join(_story_card(it) for it in items) or (
+        f"<p>No headlines yet for {html.escape(region_name)} — the daily crawl is still running.</p>"
+    )
+    noscript = (
+        '<noscript><main class="noscript-country">\n'
+        f"<h1>{html.escape(region_name)} headlines</h1>\n"
+        f"{cards}\n"
+        '<p><a href="/">Back to the interactive world map</a></p>\n'
+        "</main></noscript>"
+    )
+    nav = _region_nav(cont, region)
+    return HTMLResponse(
+        _app_page(
+            title=title,
+            description=description,
+            canonical_path="/region/" + slug,
+            initial_region=(cont["slug"], region["slug"]),
+            body_prefix=nav + noscript,
+            head_extra=_newsarticle_jsonld(items),
+        )
+    )
+
+
+def _region_not_found(slug):
+    safe = html.escape(slug)
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Region not found — Global News Map</title>
+<meta name="robots" content="noindex">
+<style>
+body {{ font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 48px 16px; color: #1a1a1a; }}
+a {{ color: #0b5fff; }}
+</style>
+</head>
+<body>
+<h1>🌐 Hmm, no region page for “{safe}”</h1>
+<p>That link doesn’t match any of the 22 regions on the map. It may be a typo, or the page moved.</p>
+<p><a href="/">Back to the world map</a> · <a href="/top">Today’s top headlines</a></p>
+</body>
+</html>"""
 
 
 def _country_not_found(slug):
