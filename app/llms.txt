@@ -14,6 +14,8 @@ links out to the original publisher article.
 - Plain headline list (no JavaScript needed): https://globalnewsmap.net/top
 - Per-country shareable pages: https://globalnewsmap.net/country/<slug>
   (e.g. https://globalnewsmap.net/country/south-korea)
+- Per-region shareable pages: https://globalnewsmap.net/region/<slug>
+  (e.g. https://globalnewsmap.net/region/southeast-asia)
 
 ## Data API (JSON, no key required)
 
