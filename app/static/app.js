@@ -459,7 +459,11 @@
   // ---------------------------------------------------------------------------
   // Panel
   // ---------------------------------------------------------------------------
-  function storyCard(s) {
+  // SMA-513: per-story share affordance. Each card links to the story's
+  // canonical /country/<slug> deep link (not the publisher URL) so shares
+  // drive traffic back to the map. Native share sheet on mobile, clipboard
+  // fallback on desktop.
+  function storyCard(s, level) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
     var favicon = "";
     try {
@@ -467,13 +471,16 @@
       favicon = '<img class="favicon" src="https://www.google.com/s2/favicons?domain=' +
         esc(host) + '&sz=32" alt="" loading="lazy" onerror="this.remove()">';
     } catch (e) { /* leave favicon empty on unparseable URL */ }
+    var shareBtn = '<button type="button" class="share-story" data-slug="' + esc(countrySlug(s.country || "")) +
+      '" data-title="' + esc(s.title || "") + '" data-level="' + esc(level || "") +
+      '" title="Share this story" aria-label="Share this story">↗ Share</button>';
     return (
       '<article class="story" data-source="' + esc(s.source || "") + '">' +
         '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
         "<span>" + esc(pub) + "</span>" +
-        '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read →</a></div>' +
+        '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read →</a>' + shareBtn + "</div>" +
       "</article>"
     );
   }
@@ -488,7 +495,7 @@
     if (!items.length) {
       html += '<p class="hint">No headlines yet — the next daily crawl will pick this up.</p>';
     } else {
-      html += items.map(storyCard).join("");
+      html += items.map(function (s) { return storyCard(s, level); }).join("");
     }
     storiesEl.innerHTML = html;
     trackEvent("stories_shown", { level: level, count: items.length });
@@ -642,6 +649,42 @@
     trackEvent("click_story", {
       level: active.country ? "country" : active.region ? "region" : "continent",
       source: art ? art.getAttribute("data-source") || "" : "",
+    });
+  });
+
+  // Per-story share affordance (SMA-513): delegated; story cards are
+  // re-rendered. Fires share_story {level, country, method} in GA4.
+  storiesEl.addEventListener("click", function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest(".share-story") : null;
+    if (!btn || !storiesEl.contains(btn)) return;
+    var slug = btn.getAttribute("data-slug");
+    if (!slug) return;
+    var title = btn.getAttribute("data-title") || "Global News Map";
+    var url = CANONICAL_BASE + "/country/" + slug;
+    var done = function (method) {
+      trackEvent("share_story", {
+        level: btn.getAttribute("data-level") || "unknown",
+        country: slug,
+        method: method,
+      });
+    };
+    var confirmCopy = function () {
+      var t = btn.textContent;
+      btn.textContent = "✓ Copied";
+      setTimeout(function () { btn.textContent = t; }, 1500);
+    };
+    if (navigator.share) {
+      navigator.share({ title: title, text: title, url: url }).then(function () {
+        done("webshare");
+      }, function () { /* dismissed — not a share */ });
+      return;
+    }
+    copyText(url).then(function () {
+      confirmCopy();
+      done("clipboard");
+    }, function () {
+      window.prompt("Copy this link:", url);
+      done("prompt");
     });
   });
 
