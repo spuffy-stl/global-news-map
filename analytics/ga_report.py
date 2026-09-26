@@ -22,6 +22,7 @@ SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 EVENTS = ["select_region", "click_story", "refresh_headlines",
           "stories_shown",  # SMA-460: impression events for story CTR
           "share_country",  # SMA-445: share-button usage
+          "share_story",  # SMA-513: per-story share affordance
           "select_world", "select_continent", "select_country",
           "return_visit", "return_badge_click",  # SMA-497: return-hook reach
           ]  # SMA-489: full drill-down funnel per view level
