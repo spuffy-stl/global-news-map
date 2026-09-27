@@ -297,12 +297,37 @@ LLMS_TXT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "llms.t
 @app.get("/llms.txt")
 def llms_txt():
     """Plain-text site summary for AI assistants (GEO): what the service is,
-    the JSON API surface, and attribution rules."""
+    the JSON API surface, and attribution rules. The top-stories digest
+    section is rendered live from the headline database (SMA-523), so it
+    always reflects the latest daily crawl with no manual refresh step."""
     try:
         with open(LLMS_TXT_PATH, encoding="utf-8") as f:
             text = f.read()
     except OSError:
         raise HTTPException(status_code=404, detail="llms.txt not found")
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        stories = db.get_top_headlines(15)
+    except Exception:
+        stories = []
+    lines = [
+        "",
+        "## Today's top stories (%s)" % today,
+        "",
+        "Top %d world headlines from the latest daily crawl. Country links go"
+        % len(stories),
+        "to that country's shareable page on this site.",
+        "",
+    ]
+    for it in stories:
+        slug = country_slug(it.get("country") or "")
+        lines.append(
+            "- %s — %s (country: https://globalnewsmap.net/country/%s)"
+            % (it.get("title", ""), it.get("source", ""), slug)
+        )
+    if not stories:
+        lines.append("No headlines in the database yet.")
+    text = text.rstrip("\n") + "\n" + "\n".join(lines) + "\n"
     return Response(content=text, media_type="text/plain; charset=utf-8")
 
 
