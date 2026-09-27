@@ -217,6 +217,7 @@ body {
   background: rgba(14, 25, 48, 0.7); color: var(--ink);
   border: 1px solid var(--line);
   border-radius: 999px; padding: 8px 15px; font-size: 13px; font-weight: 600; cursor: pointer;
+  min-height: 44px; /* SMA-526: comfortably tappable on mobile */
   transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .chip::before {
@@ -234,7 +235,7 @@ body {
    regions, region -> countries). Smaller variant of the map-nav chips. */
 .drill-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
 .drill-label { font-size: 12px; color: var(--muted); margin-right: 2px; }
-.chip.sub { font-size: 12px; padding: 5px 11px; gap: 6px; }
+.chip.sub { font-size: 12px; padding: 5px 11px; gap: 6px; min-height: 44px; /* SMA-526 */ }
 .chip.sub::before { width: 7px; height: 7px; }
 /* SMA-497: NEW dot marking stories published since the visitor's last visit. */
 .newdot {
@@ -294,9 +295,13 @@ p.hint.hook {
 .story .meta a { color: var(--accent); font-weight: 600; }
 .story .share-story {
   font-size: 12px; font-weight: 600; color: var(--accent);
-  background: none; border: none; cursor: pointer; padding: 4px 6px;
+  background: none; border: none; cursor: pointer; padding: 4px 12px;
   margin: 0; -webkit-tap-highlight-color: transparent;
+  /* SMA-526: 44px tap target on mobile */
+  min-height: 44px; display: inline-flex; align-items: center;
 }
+/* SMA-526: 44px tap target for the panel close button */
+#panelClose { min-width: 44px; min-height: 44px; }
 .story .share-story:hover { text-decoration: underline; }
 
 /* Country source list ----------------------------------------------------- */
