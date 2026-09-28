@@ -44,6 +44,12 @@
     var t = Date.parse(s.published_at || s.fetched_at || "");
     return !!(t && t > lastVisitTs);
   }
+  // SMA-524: a visit is recorded for every page view, not just the world view,
+  // so deep-link landings (/country/<slug>, /region/<slug> — the AI-assistant
+  // and organic-search traffic) count as visits for the return hook.
+  function stampVisit() {
+    try { window.localStorage.setItem("gnm_last_visit", String(Date.now())); } catch (e) { /* storage unavailable — skip silently */ }
+  }
   function updateFreshBadge(items) {
     try {
       var now = Date.now();
@@ -60,7 +66,7 @@
           freshBadge.classList.remove("hidden");
         }
       }
-      window.localStorage.setItem("gnm_last_visit", String(now));
+      stampVisit();
       // NOTE: lastVisitTs intentionally keeps the *previous* visit's timestamp
       // for the rest of this session, so NEW dots stay correct on drill-down
       // views; only the stored value moves forward.
@@ -872,6 +878,11 @@
       setPath("/region/" + initialRegion[1]);
     }
     else loadWorldHeadlines();
+    // SMA-524: stamp the visit on every page load, including deep links —
+    // loadWorldHeadlines() also stamps via updateFreshBadge(), so world loads
+    // are covered either way; lastVisitTs (session copy) is untouched, so
+    // NEW-dot math still uses the previous visit's timestamp.
+    stampVisit();
     refreshStatus();
     setInterval(refreshStatus, 60000);
   }).catch(function (err) {
