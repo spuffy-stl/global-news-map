@@ -395,6 +395,32 @@ def _newsarticle_jsonld(items):
     return '<script type="application/ld+json">\n' + data + "\n</script>"
 
 
+def _country_summary(label, n_sources, source_word, items):
+    """Answer-friendly summary block for /country/<slug> (SMA-546, GEO).
+
+    A single plain-HTML paragraph summarizing today's stories — story count,
+    outlet count, and the top 3 headlines. Rendered inside the existing
+    <noscript> block so crawlers, no-JS readers, and AI assistants fetching
+    the raw HTML all see it; JS users see the interactive panel instead.
+    Everything comes from the same `items` already rendered on the page —
+    nothing invented, regenerates with the daily crawl."""
+    today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
+    story_word = "story" if len(items) == 1 else "stories"
+    top = "".join(
+        f"<li>{html.escape(it.get('title') or '')}"
+        + (f" — {html.escape(it.get('source') or '')}" if it.get("source") else "")
+        + "</li>"
+        for it in items[:3]
+    )
+    return (
+        '<section class="answer-summary" aria-label="Today\u2019s summary">\n'
+        f"<p>As of {today}, {html.escape(label)} has {len(items)} top {story_word} "
+        f"from {n_sources} local news {source_word} on the Global News Map.</p>\n"
+        + (f"<ol>\n{top}\n</ol>\n" if top else "")
+        + "</section>\n"
+    )
+
+
 @app.get("/country/{slug}")
 def country_page(slug: str):
     """Shareable deep link per country (SMA-399): the interactive app shell
@@ -422,6 +448,7 @@ def country_page(slug: str):
     noscript = (
         '<noscript><main class="noscript-country">\n'
         f"<h1>{html.escape(label)} headlines</h1>\n"
+        f"{_country_summary(label, n_sources, source_word, items)}"
         f"{cards}\n"
         '<p><a href="/">Back to the interactive world map</a></p>\n'
         "</main></noscript>"
