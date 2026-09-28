@@ -145,7 +145,59 @@ def main():
     lines.append("Top landing pages by channel (last 7 days):")
     for dims, vals in rows(landing):
         lines.append(f"- {dims[0]} · {dims[1]}: {vals[0]} sessions, {vals[1]} engaged")
+
+    # SMA-543: Search Console snapshot — indexed-page count (cached, refreshed
+    # by analytics/sc_snapshot.py) + top queries, alongside the GA numbers.
+    lines.append("")
+    lines.append("## Search Console — globalnewsmap.net (last 7d)")
+    lines.extend(sc_section())
     print("\n".join(lines))
+
+
+def sc_section():
+    """Indexed-page count from the cached snapshot + top-5 queries via the
+    Search Analytics API. Never blocks the GA report on failure."""
+    out = []
+    snap_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "sc_snapshot.json")
+    try:
+        with open(snap_path) as f:
+            snap = json.load(f)
+        age_h = (time.time() - os.path.getmtime(snap_path)) / 3600
+        freshness = "fresh" if age_h < 48 else "STALE"
+        out.append(f"Indexed pages: **{snap['indexed']}/{snap['sitemap_urls']}** "
+                   f"(snapshot {snap['generated_at']}, {freshness}, {age_h:.1f}h old)")
+        other = {k: v for k, v in snap.get("by_coverage", {}).items()
+                 if k != "Submitted and indexed"}
+        if other:
+            out.append("Non-indexed coverage states: " +
+                       ", ".join(f"{k}={v}" for k, v in sorted(other.items())))
+    except FileNotFoundError:
+        out.append("Indexed pages: n/a (no snapshot yet — run analytics/sc_snapshot.py)")
+    except Exception as e:
+        out.append(f"Indexed pages: n/a (snapshot unreadable: {e})")
+    try:
+        token = get_token(["https://www.googleapis.com/auth/webmasters.readonly"])
+        r = requests.post(
+            "https://www.googleapis.com/webmasters/v3/sites/"
+            "sc-domain%3Aglobalnewsmap.net/searchAnalytics/query",
+            headers={"Authorization": "Bearer " + token},
+            json={"startDate": time.strftime("%Y-%m-%d",
+                                             time.gmtime(time.time() - 7 * 86400)),
+                  "endDate": time.strftime("%Y-%m-%d", time.gmtime()),
+                  "dimensions": ["query"], "rowLimit": 5},
+            timeout=45)
+        if r.status_code == 200:
+            out.append("Top search queries (7d):")
+            for row in (r.json().get("rows") or []):
+                out.append(f"- {row['keys'][0]}: {row['clicks']} clicks, "
+                           f"{row['impressions']} impressions, "
+                           f"avg pos {row['position']:.1f}")
+        else:
+            out.append(f"Top queries: unavailable (SC API {r.status_code})")
+    except Exception as e:
+        out.append(f"Top queries: unavailable ({type(e).__name__})")
+    return out
 
 
 if __name__ == "__main__":
