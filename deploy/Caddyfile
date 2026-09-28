@@ -1,6 +1,12 @@
 # Caddy terminates TLS for the public domain (Let's Encrypt, auto-renewed)
 # and reverse-proxies to the app container over the internal docker network.
-globalnewsmap.net, www.globalnewsmap.net {
+# www is a permanent redirect to the bare canonical domain (SMA-543: www was
+# serving duplicate 200 content, splitting crawl equity).
+www.globalnewsmap.net {
+	redir https://globalnewsmap.net{uri} permanent
+}
+
+globalnewsmap.net {
 	reverse_proxy newsmap:8000
 }
 
