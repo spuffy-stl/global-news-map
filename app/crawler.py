@@ -28,7 +28,7 @@ def _fetch(url):
     # One retry with a short backoff: transient network/proxy failures are
     # common across 234 feeds (observed with a Cloudflare-fronted feed that
     # succeeded on retry), and a single failed attempt leaves a country empty
-    # until the next daily crawl.
+    # until the next crawl (twice daily).
     last_exc = None
     for attempt in (1, 2):
         try:

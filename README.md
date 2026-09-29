@@ -16,7 +16,7 @@ because a third-party tile layer failed.
 
 ## Built with
 
-- **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (daily crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing), [PyYAML](https://pyyaml.org/) (source taxonomy)
+- **Backend** — [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [APScheduler](https://apscheduler.readthedocs.io/) (twice-daily crawl), [feedparser](https://feedparser.readthedocs.io/) (RSS parsing), [PyYAML](https://pyyaml.org/) (source taxonomy)
 - **Map** — [D3.js](https://d3js.org/) v7.9.0 (vendored) + [Natural Earth](https://www.naturalearthdata.com/) 110m admin-0 GeoJSON (vendored)
 - **Analytics** — [Google Analytics 4](https://analytics.google.com/) via `gtag.js` (server-injected only when `GA_MEASUREMENT_ID` is set); daily reporting via the [Analytics Data API](https://developers.google.com/analytics/devguides/reporting/data/v1) — `analytics/ga_report.py` ([google-auth](https://github.com/googleapis/google-auth-library-python), GCP service account with Viewer access on the property)
 - **Infra** — [Docker](https://www.docker.com/), [Google Cloud](https://cloud.google.com/) (e2-micro VM, static IP), [GitHub Actions](https://github.com/features/actions) (auto-deploy on push to `main`)
@@ -61,7 +61,7 @@ continents:
 - **Crawler** — A polite RSS crawler (proper User-Agent, timeouts, 1s pause
   between feeds, per-feed error isolation) fetches each unique feed URL once
   per run and attributes headlines to every subscribed country. It runs once
-  on startup and then daily at 13:00 UTC via APScheduler, and can be
+  on startup and then twice daily at 13:00 and 01:00 UTC via APScheduler, and can be
   triggered manually.
 - **Database** — SQLite file (`data/news.db`) with a `headlines` table
   (`continent, region, country, title, summary, url, source, published_at,
