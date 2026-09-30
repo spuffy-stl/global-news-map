@@ -198,12 +198,14 @@ def ga4_snippet(measurement_id):
 
 
 def _app_page(title=None, description=None, canonical_path="/",
-              initial_country=None, initial_region=None, body_prefix="", head_extra=""):
+              initial_country=None, initial_region=None, body_prefix="", head_extra="",
+              body_suffix=""):
     """Render the interactive app shell with per-page head tags (SMA-380,
     SMA-399). When initial_country (an ADMIN name) is given, the client boots
     straight into that country view; initial_region (a (cont_slug, region_slug)
     pair, SMA-511) boots into a region view; body_prefix (e.g. a <noscript>
-    headline list) gives crawlers and no-JS readers content without JavaScript."""
+    headline list) gives crawlers and no-JS readers content without JavaScript.
+    body_suffix (e.g. a link footer, SMA-550) renders after the app shell."""
     page = (
         INDEX_HTML.replace(
             GA4_PLACEHOLDER,
@@ -263,12 +265,48 @@ def _app_page(title=None, description=None, canonical_path="/",
         page = page.replace("</head>", head_extra + "\n</head>", 1)
     if body_prefix:
         page = page.replace("<body>", "<body>\n" + body_prefix, 1)
+    if body_suffix:
+        page = page.replace("</body>", body_suffix + "\n</body>", 1)
     return page
+
+
+def _popular_countries_footer(n=20):
+    """Server-rendered 'Popular countries' link strip for the homepage
+    (SMA-550): real <a> links from the site's highest-equity page (/) to the
+    top-n countries by live story count, so discovered-not-indexed country
+    pages get crawlable internal link equity. Anchor text mirrors the
+    query-shaped page titles ("Japan News"). Renders from the live database —
+    nothing hard-coded, updates with the daily crawl."""
+    try:
+        counts = db.get_country_counts()
+    except Exception:
+        log.exception("popular-countries footer: db unavailable")
+        return ""
+    ranked = []
+    for slug, country in _SLUG_TO_COUNTRY.items():
+        c = counts.get(country["name"], 0)
+        if c > 0:
+            ranked.append((c, slug, _country_label(country)))
+    ranked.sort(reverse=True)
+    if not ranked:
+        return ""
+    links = "".join(
+        f'<li><a href="/country/{slug}">{html.escape(label)} News</a></li>'
+        for _, slug, label in ranked[:n]
+    )
+    return (
+        '<footer class="popular-countries">'
+        "<h2>Popular countries today</h2>"
+        f"<ul>{links}</ul>"
+        '<p class="pc-note">Headlines from local news outlets, refreshed daily. '
+        '<a href="/top">See all top headlines →</a></p>'
+        "</footer>"
+    )
 
 
 @app.get("/")
 def index():
-    return HTMLResponse(_app_page())
+    return HTMLResponse(_app_page(body_suffix=_popular_countries_footer()))
 
 
 @app.get("/sitemap.xml")
@@ -439,7 +477,10 @@ def country_page(slug: str):
     label = country.get("label") or admin
     n_sources = len(country.get("sources") or [])
     source_word = "outlet" if n_sources == 1 else "outlets"
-    title = f"{label} headlines today — Global News Map"
+    # SMA-550: query-shaped title — mirrors how people search for country news
+    # ("Japan News — Today's Headlines on the News Map"), not the old
+    # "headlines today" phrasing nobody types.
+    title = f"{label} News — Today's Headlines on the News Map"
     description = (
         f"Today's top headlines from {n_sources} local news {source_word} in {label}, "
         "updated daily by the Global News Map."
@@ -450,7 +491,7 @@ def country_page(slug: str):
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
-        f"<h1>{html.escape(label)} headlines</h1>\n"
+        f"<h1>{html.escape(label)} News — Today's Headlines on the News Map</h1>\n"
         f"{_country_summary(label, n_sources, source_word, items)}"
         f"{cards}\n"
         '<p><a href="/">Back to the interactive world map</a></p>\n'
@@ -532,7 +573,8 @@ def region_page(slug: str):
     n_countries = len(countries)
     n_sources = sum(len(c.get("sources") or []) for c in countries)
     source_word = "outlet" if n_sources == 1 else "outlets"
-    title = f"{region_name} headlines today — Global News Map"
+    # SMA-550: query-shaped title, mirroring the /country/<slug> pages.
+    title = f"{region_name} News — Today's Headlines on the News Map"
     description = (
         f"Today's top headlines from {n_sources} local news {source_word} "
         f"across {n_countries} countries in {region_name}, updated daily by the Global News Map."
@@ -543,7 +585,7 @@ def region_page(slug: str):
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
-        f"<h1>{html.escape(region_name)} headlines</h1>\n"
+        f"<h1>{html.escape(region_name)} News — Today's Headlines on the News Map</h1>\n"
         f"{cards}\n"
         '<p><a href="/">Back to the interactive world map</a></p>\n'
         "</main></noscript>"
