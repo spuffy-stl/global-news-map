@@ -41,11 +41,28 @@ def inspect_url(url, headers, tries=4):
             time.sleep(4)
 
 
+def fetch_sitemap(tries=5):
+    """Fetch the sitemap XML via curl (SMA-550). urllib's read pattern
+    consistently hits IncompleteRead ~16KB in through the egress proxy
+    while curl (preemptive Proxy-Authorization) succeeds every time."""
+    import subprocess
+    for t in range(tries):
+        try:
+            p = subprocess.run(
+                ["curl", "-sS", "-A", UA["User-Agent"], "--max-time", "30", SITEMAP],
+                capture_output=True, timeout=40, check=True)
+            return p.stdout.decode()
+        except Exception as e:
+            if t == tries - 1:
+                raise
+            print("sitemap fetch retry", t + 1, repr(e)[:100], flush=True)
+            time.sleep(5)
+
+
 def main():
     token = get_token(SCOPES)
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-    xml = urllib.request.urlopen(
-        urllib.request.Request(SITEMAP, headers=UA), timeout=30).read().decode()
+    xml = fetch_sitemap()
     urls = re.findall(r"<loc>([^<]+)</loc>", xml)
     results, coverage = [], {}
     for u in urls:
