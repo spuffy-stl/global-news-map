@@ -293,16 +293,21 @@ p.hint.hook {
   padding: 3px 9px; border-radius: 999px; font-weight: 600; font-size: 11.5px;
 }
 .story .meta a { color: var(--accent); font-weight: 600; }
+/* SMA-549: prominent share affordance — a visible pill at the top-right of
+   the card, next to the headline, instead of a buried text button. */
 .story .share-story {
-  font-size: 12px; font-weight: 600; color: var(--accent);
-  background: none; border: none; cursor: pointer; padding: 4px 12px;
-  margin: 0; -webkit-tap-highlight-color: transparent;
+  float: right;
+  font-size: 12.5px; font-weight: 700; color: #8fd8fd;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 999px;
+  cursor: pointer; padding: 6px 14px; margin: 0 0 8px 10px;
+  -webkit-tap-highlight-color: transparent;
   /* SMA-526: 44px tap target on mobile */
   min-height: 44px; display: inline-flex; align-items: center;
 }
 /* SMA-526: 44px tap target for the panel close button */
 #panelClose { min-width: 44px; min-height: 44px; }
-.story .share-story:hover { text-decoration: underline; }
+.story .share-story:hover { background: rgba(56, 189, 248, 0.24); color: #d8f1ff; }
 
 /* Country source list ----------------------------------------------------- */
 .sources { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }

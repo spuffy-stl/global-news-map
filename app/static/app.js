@@ -133,6 +133,8 @@
   // fallback with a "Copied" confirmation on desktop.
   var CANONICAL_BASE = "https://globalnewsmap.net";
   var shareCountry = null; // {label, slug}
+  var shareItems = []; // story items shown in the current country view —
+  // feeds the pre-composed share text (SMA-549)
   function setShareCountry(label, admin) {
     if (label && admin) {
       shareCountry = { label: label, slug: countrySlug(admin) };
@@ -160,22 +162,38 @@
       } catch (e) { reject(e); }
     });
   }
+  // SMA-549: the shared text is pre-composed (top headlines + sources), not a
+  // bare URL — a pasted share is self-contained and worth sending. The
+  // clipboard path copies the full text, so desktop users paste into chats
+  // with context; mobile uses the native share sheet.
+  function countryShareText() {
+    var lines = [shareCountry.label + " News — Today's Headlines on the News Map", ""];
+    var top = shareItems.slice(0, 3);
+    for (var i = 0; i < top.length; i++) {
+      lines.push("\u2022 " + (top[i].title || "") +
+        (top[i].source ? " — " + top[i].source : ""));
+    }
+    if (top.length) lines.push("");
+    lines.push(CANONICAL_BASE + "/country/" + shareCountry.slug);
+    return lines.join("\n");
+  }
   shareBtn.addEventListener("click", function () {
     if (!shareCountry) return;
     var url = CANONICAL_BASE + "/country/" + shareCountry.slug;
-    var title = shareCountry.label + " headlines -- Global News Map";
+    var title = shareCountry.label + " News — Today's Headlines on the News Map";
+    var text = countryShareText();
     if (navigator.share) {
-      navigator.share({ title: title, text: title, url: url }).then(function () {
+      navigator.share({ title: title, text: text, url: url }).then(function () {
         trackEvent("share_country", { method: "webshare", country: shareCountry.slug });
       }, function () { /* dismissed — not a share */ });
       return;
     }
-    copyText(url).then(function () {
+    copyText(text).then(function () {
       shareBtn.textContent = "✓ Copied";
       setTimeout(function () { shareBtn.textContent = "↗ Share"; }, 2000);
       trackEvent("share_country", { method: "clipboard", country: shareCountry.slug });
     }, function () {
-      window.prompt("Copy this link:", url);
+      window.prompt("Copy this share text:", text);
       trackEvent("share_country", { method: "prompt", country: shareCountry.slug });
     });
   });
@@ -477,16 +495,19 @@
       favicon = '<img class="favicon" src="https://www.google.com/s2/favicons?domain=' +
         esc(host) + '&sz=32" alt="" loading="lazy" onerror="this.remove()">';
     } catch (e) { /* leave favicon empty on unparseable URL */ }
+    // SMA-549: share affordance sits next to the headline (prominent, top-right
+    // of the card via .share-story float) instead of buried in the meta row.
     var shareBtn = '<button type="button" class="share-story" data-slug="' + esc(countrySlug(s.country || "")) +
-      '" data-title="' + esc(s.title || "") + '" data-level="' + esc(level || "") +
+      '" data-title="' + esc(s.title || "") + '" data-source="' + esc(s.source || "") +
+      '" data-level="' + esc(level || "") +
       '" title="Share this story" aria-label="Share this story">↗ Share</button>';
     return (
       '<article class="story" data-source="' + esc(s.source || "") + '">' +
-        '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
+        '<h3>' + shareBtn + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
         "<span>" + esc(pub) + "</span>" +
-        '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read →</a>' + shareBtn + "</div>" +
+        '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read →</a>' + "</div>" +
       "</article>"
     );
   }
@@ -505,6 +526,8 @@
     }
     storiesEl.innerHTML = html;
     trackEvent("stories_shown", { level: level, count: items.length });
+    // SMA-549: keep the current country-view items for the share composer.
+    shareItems = (level === "country") ? items : [];
     if (window.innerWidth <= 900) {
       document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
@@ -666,7 +689,25 @@
     var slug = btn.getAttribute("data-slug");
     if (!slug) return;
     var title = btn.getAttribute("data-title") || "Global News Map";
+    var source = btn.getAttribute("data-source") || "";
     var url = CANONICAL_BASE + "/country/" + slug;
+    // SMA-549: pre-composed share text — headline + source + map deep link.
+    // The clipboard path copies the whole text so a paste into chat is
+    // self-contained, not a bare URL.
+    var countryLabel = (function () {
+      for (var i = 0; i < continents.length; i++) {
+        var c = continents[i];
+        for (var j = 0; j < c.regions.length; j++) {
+          var r = c.regions[j];
+          for (var k = 0; k < r.countries.length; k++) {
+            if (countrySlug(r.countries[k].name) === slug) return r.countries[k].label;
+          }
+        }
+      }
+      return null;
+    })();
+    var text = "\u201C" + title + "\u201D" + (source ? " — " + source : "") +
+      "\nMore " + (countryLabel || "world") + " news on the Global News Map:\n" + url;
     var done = function (method) {
       trackEvent("share_story", {
         level: btn.getAttribute("data-level") || "unknown",
@@ -680,16 +721,16 @@
       setTimeout(function () { btn.textContent = t; }, 1500);
     };
     if (navigator.share) {
-      navigator.share({ title: title, text: title, url: url }).then(function () {
+      navigator.share({ title: title, text: text, url: url }).then(function () {
         done("webshare");
       }, function () { /* dismissed — not a share */ });
       return;
     }
-    copyText(url).then(function () {
+    copyText(text).then(function () {
       confirmCopy();
       done("clipboard");
     }, function () {
-      window.prompt("Copy this link:", url);
+      window.prompt("Copy this share text:", text);
       done("prompt");
     });
   });
