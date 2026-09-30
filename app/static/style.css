@@ -332,3 +332,28 @@ p.hint.hook {
   .marker .label { font-size: 10px; }
   .updated { display: none; }
 }
+
+/* Popular countries link strip (SMA-550) ----------------------------------
+   Server-rendered footer below the app shell on the homepage: crawlable
+   internal links from / to the top countries by story count. */
+.popular-countries {
+  max-width: 1560px; margin: 40px auto 0; padding: 28px 20px 40px;
+  border-top: 1px solid rgba(120, 160, 220, 0.14);
+}
+.popular-countries h2 {
+  margin: 0 0 14px; font-size: 15px; font-weight: 700; color: var(--muted);
+  letter-spacing: 0.02em;
+}
+.popular-countries ul {
+  list-style: none; margin: 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px 10px;
+}
+.popular-countries li a {
+  display: inline-block; font-size: 13px; font-weight: 600; color: #9adcfa;
+  background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2);
+  padding: 6px 13px; border-radius: 999px; text-decoration: none;
+}
+.popular-countries li a:hover { background: rgba(56, 189, 248, 0.18); color: #d8f1ff; }
+.popular-countries .pc-note { margin: 16px 0 0; font-size: 12.5px; color: var(--faint); }
+.popular-countries .pc-note a { color: var(--accent); text-decoration: none; }
+.popular-countries .pc-note a:hover { text-decoration: underline; }
