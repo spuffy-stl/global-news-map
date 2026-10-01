@@ -31,18 +31,22 @@ def main():
         + "/sitemaps/"
         + urllib.parse.quote(SITEMAP_URL, safe="")
     )
+    # The webmasters v3 sitemaps.submit endpoint wants a PUT with a (possibly
+    # empty) JSON body: no body -> 411 from the proxy path, a Sitemap resource
+    # body -> 400 unknown field. An empty object returns 204 on success.
     req = urllib.request.Request(
         url,
-        data=b"",
+        data=b"{}",
         headers={"Authorization": "Bearer " + token,
                  "Content-Type": "application/json"},
         method="PUT",
     )
     try:
         resp = urllib.request.urlopen(req, timeout=30)
-        body = resp.read().decode()
         print("resubmitted:", resp.status)
-        print(body[:600])
+        body = resp.read().decode()
+        if body:
+            print(body[:600])
     except urllib.error.HTTPError as e:
         print("HTTPError", e.code, e.read().decode()[:600])
         sys.exit(1)

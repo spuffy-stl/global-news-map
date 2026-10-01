@@ -39,6 +39,16 @@
 </header>
 <main class="layout">
   <section class="map-col">
+    <!-- SMA-561: first-visit landing hook — one-line value prop + one obvious
+         first interaction for cold visitors. Shown only on the world view for
+         first-time visitors (JS unhides it); hidden for everyone else. -->
+    <div id="welcomeHook" class="hook-banner hidden" role="region" aria-label="Welcome">
+      <p><strong>See what the world is reading today.</strong> Tap a glowing marker to read headlines from local outlets in 141 countries.</p>
+      <div class="hook-actions">
+        <button id="hookExplore" class="btn hook-cta" type="button">🌍 Explore headlines</button>
+        <button id="hookDismiss" class="btn ghost" type="button" aria-label="Dismiss welcome message">✕</button>
+      </div>
+    </div>
     <div class="map-wrap">
       <svg id="map" viewBox="0 0 960 500" role="img" aria-label="World map with news region markers"></svg>
       <button id="zoomReset" class="btn ghost hidden" type="button" aria-label="Reset zoom" title="Reset zoom">⟲</button>
