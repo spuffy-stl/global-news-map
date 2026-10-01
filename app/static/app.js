@@ -28,6 +28,10 @@
   var zoomResetBtn = document.getElementById("zoomReset");
   var zoomTipEl = document.getElementById("zoomTip");
   var freshBadge = document.getElementById("freshBadge");
+  // SMA-561: first-visit landing hook.
+  var welcomeHook = document.getElementById("welcomeHook");
+  var hookExplore = document.getElementById("hookExplore");
+  var hookDismiss = document.getElementById("hookDismiss");
 
   // Returning-visitor hook (SMA-381): show "N new since your last visit" on the
   // world view so repeat visitors see the daily crawl is producing fresh value.
@@ -75,6 +79,26 @@
   freshBadge.addEventListener("click", function () {
     trackEvent("return_badge_click", {});
     freshBadge.classList.add("hidden");
+  });
+
+  // SMA-561: first-visit landing hook. hideHook() runs on any map navigation
+  // so the banner never lingers after the visitor has acted.
+  function hideHook() {
+    if (welcomeHook) welcomeHook.classList.add("hidden");
+  }
+  if (hookExplore) hookExplore.addEventListener("click", function () {
+    trackEvent("hook_explore", {});
+    hideHook();
+    // Zoom into the region level so labeled region markers appear — the
+    // visitor's first interaction is one tap away.
+    svg.transition().duration(600).call(
+      mapZoom.transform,
+      d3.zoomIdentity.translate(W / 2, H / 2).scale(Z_REGION + 0.2).translate(-W / 2, -H / 2)
+    );
+  });
+  if (hookDismiss) hookDismiss.addEventListener("click", function () {
+    trackEvent("hook_dismiss", {});
+    hideHook();
   });
 
   var continents = [];
@@ -268,6 +292,49 @@
     );
   }
 
+  // SMA-563: mobile touch targets. Marker visuals are small (~20px), so each
+  // marker gets a transparent hit-area circle with r=22 (44px diameter). The
+  // hit area lives inside the .zoom-fix group, which counter-scales against
+  // map zoom — so the touch target stays a constant 44px on screen at every
+  // zoom level while the visual design is unchanged.
+  // fill="transparent" (not "none") keeps the circle a pointer-event target.
+  var HIT_R = 22;
+  function addHitArea(inner) {
+    inner.insert("circle", ":first-child")
+      .attr("class", "hitarea")
+      .attr("r", HIT_R)
+      .attr("fill", "transparent");
+  }
+
+  // SMA-563: declutter for dense areas (Europe). Markers whose centers would
+  // land within one full touch target (2*HIT_R) of each other get nudged
+  // radially apart in projected units, so overlapping hit areas never hide a
+  // smaller marker. Runs once at render time; deterministic (golden-angle
+  // fallback for exact overlaps).
+  function declutter(items, pos, minDist) {
+    var placed = [];
+    items.forEach(function (d, i) {
+      var p = pos(d);
+      for (var iter = 0; iter < 12; iter++) {
+        var moved = false;
+        for (var j = 0; j < placed.length; j++) {
+          var q = placed[j];
+          var dx = p[0] - q[0], dy = p[1] - q[1];
+          var dist = Math.hypot(dx, dy);
+          if (dist < minDist) {
+            var ang = dist > 0.001 ? Math.atan2(dy, dx) : (i * 2.399963);
+            var push = minDist - dist;
+            p = [p[0] + Math.cos(ang) * push, p[1] + Math.sin(ang) * push];
+            moved = true;
+          }
+        }
+        if (!moved) break;
+      }
+      placed.push(p);
+      d._pos = p;
+    });
+  }
+
   function markerGroup(layer, cls) {
     var m = layer.append("g").attr("class", "marker " + cls)
       .attr("tabindex", 0).attr("role", "button");
@@ -279,6 +346,7 @@
     m.attr("aria-label", label);
     m.style("filter", "drop-shadow(0 0 7px " + hexToRgba(color, 0.75) + ")");
     var inner = m.select(".zoom-fix");
+    addHitArea(inner); // SMA-563: 44px touch target
     inner.append("circle").attr("r", 16).attr("class", "pulse").attr("stroke", color);
     inner.append("circle").attr("r", 10.5).attr("class", "halo");
     inner.append("circle").attr("r", 6.5).attr("class", "dot").attr("fill", color);
@@ -359,15 +427,21 @@
       });
     });
     countries.sort(function (a, b) { return b.country.stories - a.country.stories; });
+    // SMA-563: spread markers that would overlap in dense areas before placing
+    // them, so every country stays tappable. Biggest (most stories) first.
+    declutter(countries,
+      function (d) { return projection([d.country.lon, d.country.lat]); },
+      HIT_R * 2);
     var km = kl.selectAll("g.kmarker")
       .data(countries, function (d) { return d.country.name; })
       .join("g").attr("class", "marker kmarker")
-      .attr("transform", function (d) { return "translate(" + projection([d.country.lon, d.country.lat]) + ")"; })
+      .attr("transform", function (d) { return "translate(" + d._pos[0] + "," + d._pos[1] + ")"; })
       .attr("tabindex", 0).attr("role", "button")
       .attr("aria-label", function (d) { return d.country.label; });
     km.append("g").attr("class", "zoom-fix");
     km.each(function (d) {
       var inner = d3.select(this).select(".zoom-fix");
+      addHitArea(inner); // SMA-563: 44px touch target
       var color = continentColor(d.continent.slug);
       d3.select(this).style("filter", "drop-shadow(0 0 5px " + hexToRgba(color, 0.7) + ")");
       var r = 4 + Math.min(7, Math.sqrt(d.country.stories) * 2);
@@ -571,6 +645,7 @@
   function selectContinent(slug, zoom) {
     var c = findContinent(slug);
     if (!c) return;
+    hideHook(); // SMA-561
     active = { continent: slug, region: null, country: null };
     markActive();
     trackEvent("select_continent", { continent: slug });
@@ -595,6 +670,7 @@
   function selectRegion(contSlug, slug, zoom) {
     var r = findRegion(contSlug, slug);
     if (!r) return;
+    hideHook(); // SMA-561
     active = { continent: contSlug, region: slug, country: null };
     markActive();
     trackEvent("select_region", { region: slug });
@@ -620,6 +696,7 @@
   function selectCountry(admin, zoom) {
     var f = findCountry(admin);
     if (!f) return;
+    hideHook(); // SMA-561
     active = { continent: f.continent.slug, region: f.region.slug, country: admin };
     markActive();
     trackEvent("select_country", { country: admin });
@@ -919,6 +996,12 @@
       setPath("/region/" + initialRegion[1]);
     }
     else loadWorldHeadlines();
+    // SMA-561: first-visit landing hook. Cold visitors (no recorded visit)
+    // booting into the world view get the one-line value prop + Explore CTA.
+    // Deep-link landings arrive with context, so they skip the hook.
+    if (!initialCountry && !initialRegion && !lastVisitTs && welcomeHook) {
+      welcomeHook.classList.remove("hidden");
+    }
     // SMA-524: stamp the visit on every page load, including deep links —
     // loadWorldHeadlines() also stamps via updateFreshBadge(), so world loads
     // are covered either way; lastVisitTs (session copy) is untouched, so
