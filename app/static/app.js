@@ -103,6 +103,7 @@
 
   var continents = [];
   var active = { continent: null, region: null, country: null }; // slugs / ADMIN
+  var panelLevel = "world"; // SMA-566: level of the stories currently rendered
   var mapZoom = null;
 
   // Continent color system: one distinctive hue per continent. Markers, chips,
@@ -590,6 +591,7 @@
   // (click_story / stories_shown) is measurable per view level.
   // One event per panel render, not per card, to avoid event spam.
   function renderStories(level, title, meta, items, extraHTML) {
+    panelLevel = level || "world";
     panelTitle.textContent = title;
     panelMeta.textContent = meta;
     var html = extraHTML || "";
@@ -753,9 +755,28 @@
     if (!a || !storiesEl.contains(a)) return;
     var art = a.closest("article");
     trackEvent("click_story", {
-      level: active.country ? "country" : active.region ? "region" : "continent",
+      level: panelLevel,
       source: art ? art.getAttribute("data-source") || "" : "",
     });
+  });
+
+  // SMA-566: whole-card click — the card looked static (title in plain ink,
+  // no underline until hover, so on touch there was no click cue at all).
+  // Clicking anywhere on a card except the share button or a real link
+  // opens the story and fires the same click_story event, exactly once.
+  storiesEl.addEventListener("click", function (e) {
+    if (!e.target || !e.target.closest) return;
+    if (e.target.closest("a") || e.target.closest("button")) return;
+    var art = e.target.closest("article.story");
+    if (!art || !storiesEl.contains(art)) return;
+    var link = art.querySelector("h3 a");
+    if (!link || !link.href) return;
+    trackEvent("click_story", {
+      level: panelLevel,
+      source: art.getAttribute("data-source") || "",
+      via: "card",
+    });
+    window.open(link.href, "_blank", "noopener");
   });
 
   // Per-story share affordance (SMA-513): delegated; story cards are
