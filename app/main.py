@@ -135,14 +135,17 @@ async def lifespan(app: FastAPI):
     purged = db.purge_unknown_continents(CONTINENT_SLUGS)
     if purged:
         log.info("startup purge removed %d headlines with retired continent slugs", purged)
-    # Twice-daily crawl (SMA-548): fresh headlines morning and evening, so
-    # /api/status never shows regions older than ~13h. APScheduler cron
-    # accepts a comma list for hour.
-    crawl_hours = f"{config.CRAWL_HOUR_UTC},{(config.CRAWL_HOUR_UTC + 12) % 24}"
+    # Every-6-hours crawl (SMA-576, supersedes SMA-548 twice-daily): the
+    # twice-daily schedule left headlines up to ~12h stale just before the
+    # next run, failing the freshness gate for most of the day. Anchored at
+    # CRAWL_HOUR_UTC, then +6h steps. APScheduler cron accepts a comma list.
+    crawl_hours = ",".join(
+        str((config.CRAWL_HOUR_UTC + 6 * i) % 24) for i in range(4)
+    )
     scheduler.add_job(
         run_crawl, "cron",
         hour=crawl_hours, minute=config.CRAWL_MINUTE_UTC,
-        id="twice_daily_crawl", replace_existing=True, max_instances=1,
+        id="every_6h_crawl", replace_existing=True, max_instances=1,
     )
     # Crawl once on startup so the map has headlines immediately.
     scheduler.add_job(
@@ -151,7 +154,7 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
     log.info(
-        "scheduler started; twice-daily crawl at %s:%02d UTC",
+        "scheduler started; every-6-hours crawl at %s:%02d UTC",
         crawl_hours, config.CRAWL_MINUTE_UTC,
     )
     yield
@@ -726,7 +729,7 @@ def get_status():
         "continents": st["continents"],
         "total_count": st["total_count"],
         "last_fetched": st["last_fetched"],
-        "crawl": "twice-daily",
+        "crawl": "every-6-hours",
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 
