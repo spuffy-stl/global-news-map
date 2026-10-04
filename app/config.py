@@ -128,7 +128,8 @@ def region_pos(region_countries):
 
 # --- Misc --------------------------------------------------------------------
 
-# Daily crawl time (UTC). 13:00 UTC = 06:00 PDT / 09:00 EDT.
+# Crawl anchor time (UTC), repeated every 6 hours (SMA-576).
+# 13:00 UTC = 06:00 PDT / 09:00 EDT, then 19:00, 01:00, 07:00 UTC.
 CRAWL_HOUR_UTC = int(os.environ.get("CRAWL_HOUR_UTC", "13"))
 CRAWL_MINUTE_UTC = int(os.environ.get("CRAWL_MINUTE_UTC", "0"))
 REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "20"))
