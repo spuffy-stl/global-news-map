@@ -9,3 +9,5 @@ data/*.db-*
 
 .linear/
 .linear-ops/
+analytics/sc_snapshot.json.refresh.pid
+analytics/sc_snapshot_refresh.log

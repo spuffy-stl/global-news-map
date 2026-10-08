@@ -25,6 +25,8 @@ EVENTS = ["select_region", "click_story",
           "share_story",  # SMA-513: per-story share affordance
           "select_world", "select_continent", "select_country",
           "return_visit", "return_badge_click",  # SMA-497: return-hook reach
+          "hook_explore", "hook_dismiss",  # SMA-579: SMA-561 landing-hook readout
+          "search_country", "reset_zoom",  # SMA-579: topbar search + map reset usage
           ]  # SMA-489: full drill-down funnel per view level
 
 
@@ -154,12 +156,53 @@ def main():
     print("\n".join(lines))
 
 
+def maybe_refresh_snapshot(snap_path):
+    """SMA-573: kick off a detached sc_snapshot.py refresh when the cached
+    snapshot is >24h old (or missing), so the daily loop never silently
+    reads indexing data older than ~48h. Detached on purpose: a full
+    refresh inspects ~165 URLs and takes several minutes — the report
+    must not block on it; the NEXT run reads the fresh snapshot.
+    Returns a human-readable note, or None when no refresh was needed."""
+    try:
+        age_h = (time.time() - os.path.getmtime(snap_path)) / 3600
+        if age_h <= 24:
+            return None
+    except OSError:
+        age_h = None  # missing snapshot — refresh below
+    pid_path = snap_path + ".refresh.pid"
+    try:  # don't stack a second refresh on one already running
+        with open(pid_path) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+        return "Snapshot refresh already in progress (SMA-573 auto-refresh)."
+    except Exception:
+        pass
+    try:
+        import subprocess
+        here = os.path.dirname(os.path.abspath(__file__))
+        log = open(os.path.join(here, "sc_snapshot_refresh.log"), "ab")
+        proc = subprocess.Popen(
+            [sys.executable, os.path.join(here, "sc_snapshot.py")],
+            stdout=log, stderr=log, start_new_session=True, cwd=here)
+        with open(pid_path, "w") as f:
+            f.write(str(proc.pid))
+        age_txt = "missing" if age_h is None else f"{age_h:.1f}h old"
+        return (f"Snapshot {age_txt} — auto-refresh kicked off in the "
+                f"background (SMA-573, pid {proc.pid}); next run reads "
+                f"fresh data.")
+    except Exception as e:
+        return f"Snapshot auto-refresh FAILED to start ({e}) — run analytics/sc_snapshot.py manually."
+
+
 def sc_section():
     """Indexed-page count from the cached snapshot + top-5 queries via the
     Search Analytics API. Never blocks the GA report on failure."""
     out = []
     snap_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              "sc_snapshot.json")
+    refresh_note = maybe_refresh_snapshot(snap_path)
+    if refresh_note:
+        out.append(refresh_note)
     try:
         with open(snap_path) as f:
             snap = json.load(f)
