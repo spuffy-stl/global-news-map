@@ -1022,6 +1022,9 @@
     // Deep-link landings arrive with context, so they skip the hook.
     if (!initialCountry && !initialRegion && !lastVisitTs && welcomeHook) {
       welcomeHook.classList.remove("hidden");
+      // SMA-582: impression event so the hook funnel (shown → explore/dismiss)
+      // has a denominator; previously only the two click events fired.
+      trackEvent("hook_shown", {});
     }
     // SMA-524: stamp the visit on every page load, including deep links —
     // loadWorldHeadlines() also stamps via updateFreshBadge(), so world loads

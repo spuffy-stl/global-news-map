@@ -25,6 +25,7 @@ EVENTS = ["select_region", "click_story",
           "share_story",  # SMA-513: per-story share affordance
           "select_world", "select_continent", "select_country",
           "return_visit", "return_badge_click",  # SMA-497: return-hook reach
+          "hook_shown",  # SMA-582: hook impression (funnel denominator)
           "hook_explore", "hook_dismiss",  # SMA-579: SMA-561 landing-hook readout
           "search_country", "reset_zoom",  # SMA-579: topbar search + map reset usage
           ]  # SMA-489: full drill-down funnel per view level
