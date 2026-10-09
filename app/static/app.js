@@ -596,7 +596,7 @@
     panelMeta.textContent = meta;
     var html = extraHTML || "";
     if (!items.length) {
-      html += '<p class="hint">No headlines yet — the next daily crawl will pick this up.</p>';
+      html += '<p class="hint">No headlines yet — the next crawl (every 6 hours) will pick this up.</p>';
     } else {
       html += items.map(function (s) { return storyCard(s, level); }).join("");
     }
