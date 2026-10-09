@@ -279,7 +279,7 @@ def _popular_countries_footer(n=20):
     top-n countries by live story count, so discovered-not-indexed country
     pages get crawlable internal link equity. Anchor text mirrors the
     query-shaped page titles ("Japan News"). Renders from the live database —
-    nothing hard-coded, updates with the daily crawl."""
+    nothing hard-coded, updates with each crawl (every 6 hours)."""
     try:
         counts = db.get_country_counts()
     except Exception:
@@ -301,7 +301,7 @@ def _popular_countries_footer(n=20):
         '<footer class="popular-countries">'
         "<h2>Popular countries today</h2>"
         f"<ul>{links}</ul>"
-        '<p class="pc-note">Headlines from local news outlets, refreshed daily. '
+        '<p class="pc-note">Headlines from local news outlets, refreshed every 6 hours. '
         '<a href="/top">See all top headlines →</a></p>'
         "</footer>"
     )
@@ -343,7 +343,7 @@ def llms_txt():
     """Plain-text site summary for AI assistants (GEO): what the service is,
     the JSON API surface, and attribution rules. The top-stories digest
     section is rendered live from the headline database (SMA-523), so it
-    always reflects the latest daily crawl with no manual refresh step."""
+    always reflects the latest crawl (every 6 hours) with no manual refresh step."""
     try:
         with open(LLMS_TXT_PATH, encoding="utf-8") as f:
             text = f.read()
@@ -358,7 +358,7 @@ def llms_txt():
         "",
         "## Today's top stories (%s)" % today,
         "",
-        "Top %d world headlines from the latest daily crawl. Country links go"
+        "Top %d world headlines from the latest crawl. Country links go"
         % len(stories),
         "to that country's shareable page on this site.",
         "",
@@ -381,14 +381,14 @@ def top_stories():
     without JavaScript, for SEO and for readers who just want the list."""
     items = db.get_top_headlines(50)
     cards = [_story_card(it) for it in items]
-    body = "\n".join(cards) or "<p>No headlines yet — the daily crawl is still running.</p>"
+    body = "\n".join(cards) or "<p>No headlines yet — the latest crawl is still running.</p>"
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Top world headlines today — Global News Map</title>
-<meta name="description" content="Today's top world headlines from local news outlets across 141 countries, updated daily by the Global News Map.">
+<meta name="description" content="Today's top world headlines from local news outlets across 141 countries, updated every 6 hours by the Global News Map.">
 <link rel="canonical" href="https://globalnewsmap.net/top">
 <style>
 body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px; color: #1a1a1a; }}
@@ -403,7 +403,7 @@ footer {{ margin-top: 24px; font-size: 0.8rem; color: #666; }}
 </head>
 <body>
 <header><h1><a href="/">🌐 Global News Map</a></h1>
-<p>Today's top world headlines from local news outlets worldwide. Updated daily.</p></header>
+<p>Today's top world headlines from local news outlets worldwide. Updated every 6 hours.</p></header>
 <main>
 {body}
 </main>
@@ -447,7 +447,7 @@ def _country_summary(label, n_sources, source_word, items):
     <noscript> block so crawlers, no-JS readers, and AI assistants fetching
     the raw HTML all see it; JS users see the interactive panel instead.
     Everything comes from the same `items` already rendered on the page —
-    nothing invented, regenerates with the daily crawl."""
+    nothing invented, regenerates with each crawl (every 6 hours)."""
     today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
     story_word = "story" if len(items) == 1 else "stories"
     top = "".join(
@@ -486,11 +486,11 @@ def country_page(slug: str):
     title = f"{label} News — Today's Headlines on the News Map"
     description = (
         f"Today's top headlines from {n_sources} local news {source_word} in {label}, "
-        "updated daily by the Global News Map."
+        "updated every 6 hours by the Global News Map."
     )
     items = db.get_headlines("country", admin, 15)
     cards = "\n".join(_story_card(it) for it in items) or (
-        f"<p>No headlines yet for {html.escape(label)} — the daily crawl is still running.</p>"
+        f"<p>No headlines yet for {html.escape(label)} — the latest crawl is still running.</p>"
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
@@ -580,11 +580,11 @@ def region_page(slug: str):
     title = f"{region_name} News — Today's Headlines on the News Map"
     description = (
         f"Today's top headlines from {n_sources} local news {source_word} "
-        f"across {n_countries} countries in {region_name}, updated daily by the Global News Map."
+        f"across {n_countries} countries in {region_name}, updated every 6 hours by the Global News Map."
     )
     items = db.get_headlines("region", slug, 15)
     cards = "\n".join(_story_card(it) for it in items) or (
-        f"<p>No headlines yet for {html.escape(region_name)} — the daily crawl is still running.</p>"
+        f"<p>No headlines yet for {html.escape(region_name)} — the latest crawl is still running.</p>"
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
