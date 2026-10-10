@@ -79,6 +79,17 @@
   freshBadge.addEventListener("click", function () {
     trackEvent("return_badge_click", {});
     freshBadge.classList.add("hidden");
+    // SMA-587: a click must take the returning visitor to the new stories,
+    // not just dismiss the badge. Scroll the first NEW story into view and
+    // flash all of them so "new since your last visit" is findable at a glance.
+    var newCards = storiesEl.querySelectorAll("article.story.is-new");
+    if (newCards.length) {
+      newCards[0].scrollIntoView({ behavior: "smooth", block: "center" });
+      for (var i = 0; i < newCards.length; i++) {
+        newCards[i].classList.add("flash-new");
+        (function (el) { setTimeout(function () { el.classList.remove("flash-new"); }, 2600); })(newCards[i]);
+      }
+    }
   });
 
   // SMA-561: first-visit landing hook. hideHook() runs on any map navigation
@@ -577,7 +588,7 @@
       '" data-level="' + esc(level || "") +
       '" title="Share this story" aria-label="Share this story">↗ Share</button>';
     return (
-      '<article class="story" data-source="' + esc(s.source || "") + '">' +
+      '<article class="story' + (isNewStory(s) ? " is-new" : "") + '" data-source="' + esc(s.source || "") + '">' +
         '<h3>' + shareBtn + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
@@ -745,9 +756,8 @@
 
 
   panelClose.addEventListener("click", goWorld);
-  freshBadge.addEventListener("click", function () {
-    freshBadge.classList.add("hidden");
-  });
+  // SMA-587: the freshBadge click handler lives next to updateFreshBadge()
+  // above (track + scroll to new stories + dismiss) — no second listener here.
 
   // Track outbound story clicks (delegated; story cards are re-rendered).
   storiesEl.addEventListener("click", function (e) {
