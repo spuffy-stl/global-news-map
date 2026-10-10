@@ -300,6 +300,12 @@ body {
   border-color: rgba(120, 190, 255, 0.32);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
 }
+/* SMA-587: flash applied to new-since-last-visit stories when the
+   "N new" badge is clicked, so the visitor lands on them visually. */
+.story.flash-new {
+  border-color: rgba(52, 211, 153, 0.85);
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.45), 0 8px 22px rgba(0, 0, 0, 0.4);
+}
 .story h3 { margin: 0 0 7px; font-size: 15px; line-height: 1.4; font-weight: 650; }
 .story h3 a { color: var(--ink); text-decoration: none; }
 .story h3 a:hover { color: var(--accent); text-decoration: underline; }
