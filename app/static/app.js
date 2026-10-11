@@ -100,6 +100,9 @@
   if (hookExplore) hookExplore.addEventListener("click", function () {
     trackEvent("hook_explore", {});
     hideHook();
+    // SMA-589: the hook can now be clicked before the map data loads
+    // (mapZoom is only set by drawMap()); skip the zoom until it exists.
+    if (!mapZoom) return;
     // Zoom into the region level so labeled region markers appear — the
     // visitor's first interaction is one tap away.
     svg.transition().duration(600).call(
@@ -142,6 +145,35 @@
     try {
       if (typeof window.gtag === "function") window.gtag("event", name, params || {});
     } catch (e) { /* analytics is optional */ }
+  }
+
+  // SMA-589: the landing hook and the world headlines used to wait for the
+  // full boot chain (hierarchy + the 820KB countries geojson) inside
+  // Promise.all below. GA counts a session at page_view (fired immediately),
+  // but hook_shown only fired after both fetches resolved — so early
+  // bouncers (the Direct-channel pattern in SMA-588) never saw the hook and
+  // never entered its denominator: 5-7 hook_shown vs ~25 new users in 7d.
+  // Both are determinable/available synchronously: deep-link state is
+  // injected by the server (or visible in the pathname), first-visit state
+  // is the localStorage read above, and /api/top-headlines does not depend
+  // on the map geometry. Show/fire/load them now; the boot chain below
+  // re-checks via the same flags so nothing fires or loads twice.
+  var hookShownFired = false;
+  var worldHeadlinesStarted = false;
+  function startWorldHeadlinesOnce() {
+    if (worldHeadlinesStarted) return;
+    worldHeadlinesStarted = true;
+    loadWorldHeadlines();
+  }
+  var deepLinkBoot = !!(window.GNM_INITIAL_COUNTRY || window.GNM_INITIAL_REGION)
+    || /^\/(country|region)\//.test(window.location.pathname || "/");
+  if (!deepLinkBoot) {
+    if (welcomeHook && !lastVisitTs) {
+      hookShownFired = true;
+      welcomeHook.classList.remove("hidden");
+      trackEvent("hook_shown", {});
+    }
+    startWorldHeadlinesOnce();
   }
 
   function esc(s) {
@@ -1026,11 +1058,14 @@
       // the region page stays shareable and canonical in the address bar.
       setPath("/region/" + initialRegion[1]);
     }
-    else loadWorldHeadlines();
+    else startWorldHeadlinesOnce();
     // SMA-561: first-visit landing hook. Cold visitors (no recorded visit)
     // booting into the world view get the one-line value prop + Explore CTA.
     // Deep-link landings arrive with context, so they skip the hook.
-    if (!initialCountry && !initialRegion && !lastVisitTs && welcomeHook) {
+    // SMA-589: normally already shown synchronously at script start (see
+    // hookShownFired above); this remains as the fallback path.
+    if (!initialCountry && !initialRegion && !lastVisitTs && welcomeHook && !hookShownFired) {
+      hookShownFired = true;
       welcomeHook.classList.remove("hidden");
       // SMA-582: impression event so the hook funnel (shown → explore/dismiss)
       // has a denominator; previously only the two click events fired.
@@ -1044,7 +1079,11 @@
     refreshStatus();
     setInterval(refreshStatus, 60000);
   }).catch(function (err) {
-    storiesEl.innerHTML = '<p class="hint">Failed to load the map. Please reload the page.</p>';
+    // SMA-589: if world headlines already loaded independently of the map
+    // data, don't wipe them out for a map-only failure.
+    if (!worldHeadlinesStarted) {
+      storiesEl.innerHTML = '<p class="hint">Failed to load the map. Please reload the page.</p>';
+    }
     console.error(err);
   });
 })();
