@@ -28,6 +28,7 @@ EVENTS = ["select_region", "click_story",
           "hook_shown",  # SMA-582: hook impression (funnel denominator)
           "hook_explore", "hook_dismiss",  # SMA-579: SMA-561 landing-hook readout
           "search_country", "reset_zoom",  # SMA-579: topbar search + map reset usage
+          "search_focus", "search_no_results",  # SMA-599: search funnel denominator + failed queries
           ]  # SMA-489: full drill-down funnel per view level
 
 

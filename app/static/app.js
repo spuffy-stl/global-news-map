@@ -885,6 +885,8 @@
   var searchIndex = [];   // {kind, label, sub, hay, ...ids}
   var searchMatches = [];
   var searchSel = -1;
+  var searchFocusFired = false;   // SMA-599: search funnel instrumentation
+  var lastNoResultQuery = "";
 
   function buildSearchIndex() {
     searchIndex = [];
@@ -957,6 +959,13 @@
     searchMatches = matches.slice(0, 8);
     searchSel = -1;
     if (!searchMatches.length) {
+      // SMA-599: no-result queries are the diagnosable half of search —
+      // fire once per distinct query so GA can separate "never tried"
+      // from "tried and failed".
+      if (lastNoResultQuery !== query) {
+        lastNoResultQuery = query;
+        trackEvent("search_no_results", { query: query.slice(0, 40) });
+      }
       searchResultsEl.innerHTML =
         '<li class="search-empty">No place matches <strong>' + esc(q.trim()) +
         '</strong> — try a country or region name.</li>';
@@ -972,6 +981,24 @@
     searchResultsEl.classList.remove("hidden");
     searchInput.setAttribute("aria-expanded", "true");
   }
+
+  // SMA-599: funnel denominator — search_country only fires on a pick, so
+  // without a focus event "nearly unused" was indistinguishable from
+  // "invisible". Fire once per page load on first focus.
+  searchInput.addEventListener("focus", function () {
+    if (searchFocusFired) return;
+    searchFocusFired = true;
+    trackEvent("search_focus", {});
+  });
+
+  // SMA-599: "/" focuses search from anywhere (unless already typing).
+  document.addEventListener("keydown", function (e) {
+    if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    e.preventDefault();
+    searchInput.focus();
+  });
 
   searchInput.addEventListener("input", function () { renderSearch(searchInput.value); });
 
@@ -1010,6 +1037,18 @@
       closeSearch();
     }
   });
+
+  // SMA-599: build the search index from the hierarchy alone, as soon as
+  // it arrives. Previously search stayed dead until the 820KB geojson in
+  // the Promise.all below also landed (the boot chain SMA-589 decoupled
+  // for the hook/headlines), so early visitors could not search at all.
+  // The boot handler below re-sets the same data — this is idempotent.
+  fetch("/api/hierarchy").then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!continents.length) continents = d.continents;
+      if (!searchIndex.length) { buildSearchIndex(); drawNav(); }
+    })
+    .catch(function () { /* the boot Promise.all below retries */ });
 
   Promise.all([
     fetch("/api/hierarchy").then(function (r) { return r.json(); }),
