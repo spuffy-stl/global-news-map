@@ -97,18 +97,52 @@
   function hideHook() {
     if (welcomeHook) welcomeHook.classList.add("hidden");
   }
+  // SMA-600: Explore used to only zoom the map to region level — the story
+  // panel never changed, and before mapZoom existed the click did nothing
+  // at all beyond hiding the banner. Result: hook_explore = 1 against
+  // hook_shown = 20 in 7d. Now Explore completes a real first interaction:
+  // it selects a trending country drawn from the live world headlines, so
+  // the panel visibly switches to that country's local stories and the map
+  // zooms to it. Clicks that arrive before the map/hierarchy are ready are
+  // queued (pendingHookExplore) and run from the boot handler below.
+  var worldTopItems = [];
+  var pendingHookExplore = false;
+  function exploreFromHook() {
+    if (!continents.length || !mapZoom) { pendingHookExplore = true; return false; }
+    // Distinct countries among the newest world headlines, newest first.
+    var seen = {}, candidates = [];
+    worldTopItems.forEach(function (s) {
+      if (s.country && !seen[s.country] && findCountry(s.country)) {
+        seen[s.country] = 1; candidates.push(s.country);
+      }
+    });
+    if (candidates.length) {
+      var pick = candidates[Math.floor(Math.random() * candidates.length)];
+      var f = findCountry(pick);
+      trackEvent("hook_explore", { country: pick, continent: f ? f.continent.slug : "" });
+      pendingHookExplore = false;
+      selectCountry(pick, true);
+      return true;
+    }
+    // Headline countries not resolvable yet: fall back to the busiest
+    // continent, which still visibly changes the panel to its headlines.
+    var best = null, bestN = -1;
+    continents.forEach(function (c) {
+      var n = continentStories(c);
+      if (n > bestN) { bestN = n; best = c; }
+    });
+    if (best) {
+      trackEvent("hook_explore", { continent: best.slug });
+      pendingHookExplore = false;
+      selectContinent(best.slug, true);
+      return true;
+    }
+    pendingHookExplore = true;
+    return false;
+  }
   if (hookExplore) hookExplore.addEventListener("click", function () {
-    trackEvent("hook_explore", {});
     hideHook();
-    // SMA-589: the hook can now be clicked before the map data loads
-    // (mapZoom is only set by drawMap()); skip the zoom until it exists.
-    if (!mapZoom) return;
-    // Zoom into the region level so labeled region markers appear — the
-    // visitor's first interaction is one tap away.
-    svg.transition().duration(600).call(
-      mapZoom.transform,
-      d3.zoomIdentity.translate(W / 2, H / 2).scale(Z_REGION + 0.2).translate(-W / 2, -H / 2)
-    );
+    exploreFromHook();
   });
   if (hookDismiss) hookDismiss.addEventListener("click", function () {
     trackEvent("hook_dismiss", {});
@@ -668,6 +702,7 @@
       .then(function (r) { return r.json(); })
       .then(function (items) {
         var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
+        worldTopItems = items; // SMA-600: trending pool for the hook CTA
         updateFreshBadge(items);
         renderStories("world", "Top stories right now",
           items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
@@ -1098,6 +1133,9 @@
       setPath("/region/" + initialRegion[1]);
     }
     else startWorldHeadlinesOnce();
+    // SMA-600: a hook Explore click that arrived before the map/hierarchy
+    // were ready was queued instead of dropped — run it now.
+    if (pendingHookExplore) exploreFromHook();
     // SMA-561: first-visit landing hook. Cold visitors (no recorded visit)
     // booting into the world view get the one-line value prop + Explore CTA.
     // Deep-link landings arrive with context, so they skip the hook.
