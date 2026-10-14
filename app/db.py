@@ -211,7 +211,15 @@ def get_headlines(level, key, limit=10):
 
 
 def get_top_headlines(limit=15):
-    """Most recent headlines across all continents (world view / first-visit hook)."""
+    """Most recent headlines across all continents (world view / first-visit hook).
+
+    SMA-607: a plain global recency sort lets one feed's fresh crawl batch
+    fill the whole world panel (live check 2026-10-14: 11/15 Sri Lanka, all
+    one source). Select from a larger recent pool with per-country (<=3) and
+    per-source (<=4) caps, preserving recency order, then backfill by recency
+    if the caps leave the list short.
+    """
+    pool_limit = max(limit * 20, 100)
     with _lock:
         conn = _connect()
         try:
@@ -219,11 +227,28 @@ def get_top_headlines(limit=15):
                 "SELECT continent, region, country, title, summary, url, source,"
                 " published_at, fetched_at FROM headlines"
                 " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?",
-                (limit,),
+                (pool_limit,),
             )
-            return [dict(r) for r in cur.fetchall()]
+            pool = [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
+    picked, deferred = [], []
+    per_country, per_source = {}, {}
+    for row in pool:
+        c, s = row.get("country"), row.get("source")
+        if per_country.get(c, 0) < 3 and per_source.get(s, 0) < 4:
+            picked.append(row)
+            per_country[c] = per_country.get(c, 0) + 1
+            per_source[s] = per_source.get(s, 0) + 1
+            if len(picked) >= limit:
+                return picked
+        else:
+            deferred.append(row)
+    for row in deferred:
+        if len(picked) >= limit:
+            break
+        picked.append(row)
+    return picked
 
 
 def get_status():
