@@ -835,6 +835,7 @@
       level: panelLevel,
       source: art ? art.getAttribute("data-source") || "" : "",
     });
+    if (art) maybeShowShareNudge(art);
   });
 
   // SMA-566: whole-card click — the card looked static (title in plain ink,
@@ -853,7 +854,57 @@
       source: art.getAttribute("data-source") || "",
       via: "card",
     });
+    maybeShowShareNudge(art);
     window.open(link.href, "_blank", "noopener");
+  });
+
+  // SMA-602: share tracking verified firing on real clicks (live headless
+  // click-through 2026-10-14: share_story + share_country both fired with
+  // method=clipboard and the pre-composed text landed on the clipboard) —
+  // but organic shares were 0 for two straight weeks: nobody seeks the
+  // buttons out. Put the prompt at the moment of highest intent instead:
+  // right after a visitor clicks through to a story. Once per session; the
+  // nudge's Share button re-clicks that card's own .share-story button, so
+  // the exact same share flow (and share_story event) runs.
+  var shareNudge = document.getElementById("shareNudge");
+  var shareNudgeText = document.getElementById("shareNudgeText");
+  var shareNudgeBtn = document.getElementById("shareNudgeBtn");
+  var shareNudgeDismiss = document.getElementById("shareNudgeDismiss");
+  var nudgeShareBtn = null;
+  var nudgeTimer = null;
+  function nudgeSeen() {
+    try { return sessionStorage.getItem("gnmShareNudge") === "1"; } catch (e) { return false; }
+  }
+  function markNudgeSeen() {
+    try { sessionStorage.setItem("gnmShareNudge", "1"); } catch (e) { /* storage unavailable */ }
+  }
+  function hideShareNudge() {
+    if (nudgeTimer) { clearTimeout(nudgeTimer); nudgeTimer = null; }
+    if (shareNudge) shareNudge.classList.add("hidden");
+  }
+  function maybeShowShareNudge(art) {
+    if (!shareNudge || !art || nudgeSeen()) return;
+    var btn = art.querySelector(".share-story");
+    if (!btn || !btn.getAttribute("data-slug")) return;
+    markNudgeSeen();
+    nudgeShareBtn = btn;
+    var title = btn.getAttribute("data-title") || "this story";
+    if (title.length > 60) title = title.slice(0, 57) + "\u2026";
+    if (shareNudgeText) shareNudgeText.textContent = "Worth passing on? Share \u201C" + title + "\u201D";
+    nudgeTimer = setTimeout(function () {
+      nudgeTimer = null;
+      shareNudge.classList.remove("hidden");
+      trackEvent("share_nudge_shown", { level: panelLevel, country: btn.getAttribute("data-slug") || "" });
+    }, 700);
+  }
+  if (shareNudgeBtn) shareNudgeBtn.addEventListener("click", function () {
+    trackEvent("share_nudge_click", {});
+    hideShareNudge();
+    if (nudgeShareBtn && document.contains(nudgeShareBtn)) nudgeShareBtn.click();
+  });
+  if (shareNudgeDismiss) shareNudgeDismiss.addEventListener("click", function () {
+    trackEvent("share_nudge_dismiss", {});
+    hideShareNudge();
   });
 
   // Per-story share affordance (SMA-513): delegated; story cards are

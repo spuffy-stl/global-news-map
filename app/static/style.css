@@ -194,6 +194,19 @@ body {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 .hook-banner.hidden { display: none; }
+/* SMA-602: post-story-click share nudge — fixed toast, once per session. */
+.share-nudge {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  z-index: 60; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  max-width: min(560px, calc(100vw - 24px));
+  padding: 12px 16px; border-radius: 14px;
+  background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(167,139,250,0.14));
+  border: 1px solid rgba(120, 180, 255, 0.35);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+.share-nudge.hidden { display: none; }
+.share-nudge p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--ink); flex: 1 1 240px; }
 .hook-banner p { margin: 0; font-size: 14.5px; line-height: 1.5; color: var(--ink); flex: 1 1 280px; }
 .hook-banner p strong { color: #bfe3ff; }
 .hook-actions { display: flex; align-items: center; gap: 8px; }
