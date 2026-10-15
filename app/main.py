@@ -232,15 +232,15 @@ def _app_page(title=None, description=None, canonical_path="/",
         )
     if description:
         page = page.replace(
-            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
             '<meta name="description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
             '<meta property="og:description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Fresh every day.">',
+            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
             '<meta name="twitter:description" content="' + html.escape(description, quote=True) + '">',
         )
     canonical = "https://globalnewsmap.net" + canonical_path
