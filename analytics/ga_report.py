@@ -23,6 +23,7 @@ EVENTS = ["select_region", "click_story",
           "stories_shown",  # SMA-460: impression events for story CTR
           "share_country",  # SMA-445: share-button usage
           "share_story",  # SMA-513: per-story share affordance
+          "share_nudge_shown", "share_nudge_click", "share_nudge_dismiss",  # SMA-617: SMA-602 post-click share nudge funnel
           "select_world", "select_continent", "select_country",
           "return_visit", "return_badge_click",  # SMA-497: return-hook reach
           "hook_shown",  # SMA-582: hook impression (funnel denominator)
