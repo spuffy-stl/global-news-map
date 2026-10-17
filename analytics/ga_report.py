@@ -159,6 +159,27 @@ def main():
     print("\n".join(lines))
 
 
+def _snapshot_age_h(snap_path):
+    """SMA-624: age of a snapshot in hours, from its own generated_at field.
+    File mtime is NOT a freshness signal — a git checkout/merge touches the
+    file and made a 9-day-old snapshot report as 'fresh, 24.0h old' on
+    2026-10-17, so the SMA-573 auto-refresh never fired. mtime is only the
+    fallback when generated_at is missing/unparseable. None = no snapshot."""
+    try:
+        with open(snap_path) as f:
+            generated = json.load(f).get("generated_at", "")
+        from datetime import datetime, timezone
+        ts = datetime.strptime(generated, "%Y-%m-%dT%H:%M:%SZ").replace(
+            tzinfo=timezone.utc).timestamp()
+        return (time.time() - ts) / 3600
+    except Exception:
+        pass
+    try:
+        return (time.time() - os.path.getmtime(snap_path)) / 3600
+    except OSError:
+        return None
+
+
 def maybe_refresh_snapshot(snap_path):
     """SMA-573: kick off a detached sc_snapshot.py refresh when the cached
     snapshot is >24h old (or missing), so the daily loop never silently
@@ -166,12 +187,9 @@ def maybe_refresh_snapshot(snap_path):
     refresh inspects ~165 URLs and takes several minutes — the report
     must not block on it; the NEXT run reads the fresh snapshot.
     Returns a human-readable note, or None when no refresh was needed."""
-    try:
-        age_h = (time.time() - os.path.getmtime(snap_path)) / 3600
-        if age_h <= 24:
-            return None
-    except OSError:
-        age_h = None  # missing snapshot — refresh below
+    age_h = _snapshot_age_h(snap_path)
+    if age_h is not None and age_h <= 24:
+        return None
     pid_path = snap_path + ".refresh.pid"
     try:  # don't stack a second refresh on one already running
         with open(pid_path) as f:
@@ -209,8 +227,8 @@ def sc_section():
     try:
         with open(snap_path) as f:
             snap = json.load(f)
-        age_h = (time.time() - os.path.getmtime(snap_path)) / 3600
-        freshness = "fresh" if age_h < 48 else "STALE"
+        age_h = _snapshot_age_h(snap_path)
+        freshness = "fresh" if (age_h is not None and age_h < 48) else "STALE"
         out.append(f"Indexed pages: **{snap['indexed']}/{snap['sitemap_urls']}** "
                    f"(snapshot {snap['generated_at']}, {freshness}, {age_h:.1f}h old)")
         other = {k: v for k, v in snap.get("by_coverage", {}).items()

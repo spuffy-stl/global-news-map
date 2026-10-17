@@ -32,6 +32,7 @@
   var welcomeHook = document.getElementById("welcomeHook");
   var hookExplore = document.getElementById("hookExplore");
   var hookDismiss = document.getElementById("hookDismiss");
+  var hookTeaser = document.getElementById("hookTeaser");
 
   // Returning-visitor hook (SMA-381): show "N new since your last visit" on the
   // world view so repeat visitors see the daily crawl is producing fresh value.
@@ -107,8 +108,37 @@
   // queued (pendingHookExplore) and run from the boot handler below.
   var worldTopItems = [];
   var pendingHookExplore = false;
+  // SMA-618: hook_explore stayed 0 against hook_shown 31-35 in 7d even though
+  // the click path verified working (headless click fired the event and
+  // switched the panel). The banner asked for a click before the visitor had
+  // seen any value. So the banner now carries a real headline: once the world
+  // headlines and the hierarchy are both in, populateHookTeaser() picks the
+  // newest resolvable country, shows its actual headline in the banner, and
+  // Explore goes deterministically to THAT country — value before the click,
+  // and the teaser and the destination always match.
+  var hookPick = null;
+  function populateHookTeaser() {
+    if (!hookTeaser || hookPick || !worldTopItems.length || !continents.length) return;
+    for (var i = 0; i < worldTopItems.length; i++) {
+      var s = worldTopItems[i];
+      if (s.country && s.title && findCountry(s.country)) {
+        hookPick = s.country;
+        var t = s.title.length > 120 ? s.title.slice(0, 117) + "…" : s.title;
+        hookTeaser.innerHTML = "<strong>Trending in " + esc(s.country) + ":</strong> " + esc(t);
+        hookTeaser.classList.remove("hidden");
+        return;
+      }
+    }
+  }
   function exploreFromHook() {
     if (!continents.length || !mapZoom) { pendingHookExplore = true; return false; }
+    if (hookPick && findCountry(hookPick)) {
+      var hf = findCountry(hookPick);
+      trackEvent("hook_explore", { country: hookPick, continent: hf ? hf.continent.slug : "" });
+      pendingHookExplore = false;
+      selectCountry(hookPick, true);
+      return true;
+    }
     // Distinct countries among the newest world headlines, newest first.
     var seen = {}, candidates = [];
     worldTopItems.forEach(function (s) {
@@ -703,6 +733,7 @@
       .then(function (items) {
         var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
         worldTopItems = items; // SMA-600: trending pool for the hook CTA
+        populateHookTeaser(); // SMA-618: no-op until the hierarchy is in
         updateFreshBadge(items);
         renderStories("world", "Top stories right now",
           items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
@@ -1187,6 +1218,7 @@
     // SMA-600: a hook Explore click that arrived before the map/hierarchy
     // were ready was queued instead of dropped — run it now.
     if (pendingHookExplore) exploreFromHook();
+    populateHookTeaser(); // SMA-618: hierarchy is in — teaser can resolve a country now
     // SMA-561: first-visit landing hook. Cold visitors (no recorded visit)
     // booting into the world view get the one-line value prop + Explore CTA.
     // Deep-link landings arrive with context, so they skip the hook.
