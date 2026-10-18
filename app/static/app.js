@@ -31,6 +31,7 @@
   // SMA-561: first-visit landing hook.
   var welcomeHook = document.getElementById("welcomeHook");
   var hookExplore = document.getElementById("hookExplore");
+  var hookSearch = document.getElementById("hookSearch");
   var hookDismiss = document.getElementById("hookDismiss");
   var hookTeaser = document.getElementById("hookTeaser");
 
@@ -177,6 +178,17 @@
   if (hookDismiss) hookDismiss.addEventListener("click", function () {
     trackEvent("hook_dismiss", {});
     hideHook();
+  });
+  // SMA-625: search was topbar-only and effectively invisible — search_focus
+  // fired 1-2 times in 7d while select_country fired 27-29 times via map taps.
+  // Give cold visitors a second search entry point in the hook itself, where
+  // their attention already is: it scrolls the topbar into view and focuses
+  // the input (which fires the existing search_focus funnel event). The
+  // searchInput var is assigned later in this script; by click time it is set.
+  if (hookSearch) hookSearch.addEventListener("click", function () {
+    hideHook();
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (e) {}
+    if (typeof searchInput !== "undefined" && searchInput) searchInput.focus();
   });
 
   var continents = [];
@@ -688,8 +700,15 @@
         '<h3>' + shareBtn + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
-        "<span>" + esc(pub) + "</span>" +
-        '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read →</a>' + "</div>" +
+        "<span>" + esc(pub) + "</span></div>" +
+        // SMA-566 (content lever): the 2026-10-16 readout said the next lever
+        // is card content, not more click affordance. The summary is now
+        // clamped to 2 lines in CSS (was 4 — long summaries answered the
+        // story on the card, so there was nothing left to click for), and
+        // the tiny "Read →" meta link becomes an explicit full-width CTA
+        // naming the destination source.
+        '<div class="story-cta"><a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read the full story' +
+        (s.source ? " at " + esc(s.source) : "") + " →</a></div>" +
       "</article>"
     );
   }
@@ -1103,6 +1122,7 @@
   // without a focus event "nearly unused" was indistinguishable from
   // "invisible". Fire once per page load on first focus.
   searchInput.addEventListener("focus", function () {
+    searchInput.classList.remove("attract"); // SMA-625: attention pulse ends at first use
     if (searchFocusFired) return;
     searchFocusFired = true;
     trackEvent("search_focus", {});

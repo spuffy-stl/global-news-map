@@ -27,7 +27,7 @@
 <header class="topbar">
   <div class="brand"><span class="globe" aria-hidden="true">🌐</span><h1>Global News Map</h1></div>
   <div class="search-wrap">
-    <input id="countrySearch" type="search" placeholder="🔍 Search 141 countries… ( / )" aria-label="Search countries and regions"
+    <input id="countrySearch" class="attract" type="search" placeholder="🔍 Search 141 countries… ( / )" aria-label="Search countries and regions"
       autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false"
       aria-controls="searchResults" aria-autocomplete="list">
     <ul id="searchResults" class="search-results hidden" role="listbox" aria-label="Matching places"></ul>
@@ -47,6 +47,7 @@
       <p id="hookTeaser" class="hook-teaser hidden"></p>
       <div class="hook-actions">
         <button id="hookExplore" class="btn hook-cta" type="button">🌍 Take me to a trending country</button>
+        <button id="hookSearch" class="btn ghost" type="button">🔍 Find a country</button>
         <button id="hookDismiss" class="btn ghost" type="button" aria-label="Dismiss welcome message">✕</button>
       </div>
     </div>
