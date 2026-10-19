@@ -119,9 +119,9 @@ def _story_card(it):
     )
 
 
-def run_crawl():
+def run_crawl(continents=None):
     try:
-        crawler.crawl_all()
+        crawler.crawl_all(continents=continents)
     except Exception:
         log.exception("crawl failed")
 
@@ -135,18 +135,26 @@ async def lifespan(app: FastAPI):
     purged = db.purge_unknown_continents(CONTINENT_SLUGS)
     if purged:
         log.info("startup purge removed %d headlines with retired continent slugs", purged)
-    # Every-6-hours crawl (SMA-576, supersedes SMA-548 twice-daily): the
-    # twice-daily schedule left headlines up to ~12h stale just before the
-    # next run, failing the freshness gate for most of the day. Anchored at
-    # CRAWL_HOUR_UTC, then +6h steps. APScheduler cron accepts a comma list.
-    crawl_hours = ",".join(
-        str((config.CRAWL_HOUR_UTC + 6 * i) % 24) for i in range(4)
-    )
-    scheduler.add_job(
-        run_crawl, "cron",
-        hour=crawl_hours, minute=config.CRAWL_MINUTE_UTC,
-        id="every_6h_crawl", replace_existing=True, max_instances=1,
-    )
+    # Every-6-hours crawl per continent, staggered by 1h across continents
+    # (SMA-632, building on SMA-576): the burst schedule fetched all 6
+    # continents within ~10 minutes, so the newest-region age in
+    # /api/status aged to ~6h just before the next burst. Each continent
+    # keeps its own every-6h cadence (same frequency, same total load —
+    # phases only), offset by its index in config.CONTINENTS, so at any
+    # moment the newest continent was fetched <1h ago (<2h gate met with
+    # margin even if one job is delayed).
+    continent_slugs = [c["slug"] for c in config.CONTINENTS]
+    for offset, slug in enumerate(continent_slugs):
+        crawl_hours = ",".join(
+            str((config.CRAWL_HOUR_UTC + offset + 6 * i) % 24)
+            for i in range(4)
+        )
+        scheduler.add_job(
+            run_crawl, "cron", args=[[slug]],
+            hour=crawl_hours, minute=config.CRAWL_MINUTE_UTC,
+            id=f"every_6h_crawl_{slug}", replace_existing=True,
+            max_instances=1,
+        )
     # Crawl once on startup so the map has headlines immediately.
     scheduler.add_job(
         run_crawl, "date", run_date=datetime.now(timezone.utc),
@@ -154,8 +162,9 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
     log.info(
-        "scheduler started; every-6-hours crawl at %s:%02d UTC",
-        crawl_hours, config.CRAWL_MINUTE_UTC,
+        "scheduler started; staggered every-6-hours crawl per continent "
+        "anchored at %02d:%02d UTC (SMA-632)",
+        config.CRAWL_HOUR_UTC, config.CRAWL_MINUTE_UTC,
     )
     yield
     scheduler.shutdown(wait=False)
@@ -729,7 +738,7 @@ def get_status():
         "continents": st["continents"],
         "total_count": st["total_count"],
         "last_fetched": st["last_fetched"],
-        "crawl": "every-6-hours",
+        "crawl": "every-6-hours-staggered",
         "server_time": datetime.now(timezone.utc).isoformat(),
     }
 

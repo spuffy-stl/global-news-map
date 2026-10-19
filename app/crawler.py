@@ -94,15 +94,34 @@ def crawl_feed(feed):
     return items
 
 
-def crawl_all():
-    """Crawl every unique feed, attribute items to subscribed countries."""
+def crawl_all(continents=None):
+    """Crawl every unique feed, attribute items to subscribed countries.
+
+    SMA-632: `continents` (an iterable of continent slugs) restricts the
+    crawl to feeds whose subscribers belong to those continents, so the
+    scheduler can stagger one continent per hour instead of bursting all
+    six at once. No feed in sources.yaml serves more than one continent
+    (verified 2026-10-19: 0 of 235 feeds are multi-continent), so a
+    filtered crawl fetches each feed exactly as often as a full crawl —
+    same total load, phases only.
+    """
+    wanted = set(continents) if continents else None
     feeds = config.iter_feeds()
-    log.info("starting crawl of %d unique feeds", len(feeds))
+    if wanted is not None:
+        feeds = [
+            f for f in feeds
+            if any(s["continent"] in wanted for s in f["subscribers"])
+        ]
+    log.info("starting crawl of %d unique feeds (continents=%s)",
+             len(feeds), sorted(wanted) if wanted else "all")
     counts = {}
     touched = set()
     for feed in feeds:
         items = crawl_feed(feed)
-        for sub in feed["subscribers"]:
+        subs = feed["subscribers"]
+        if wanted is not None:
+            subs = [s for s in subs if s["continent"] in wanted]
+        for sub in subs:
             for item in items:
                 db.upsert_headline(
                     continent=sub["continent"],
