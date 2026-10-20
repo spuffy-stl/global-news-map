@@ -225,6 +225,10 @@ body {
 .hook-banner p.hook-teaser { flex: 1 1 100%; order: 3; font-size: 13.5px; color: #9db4d8; border-top: 1px solid rgba(120,180,255,0.18); padding-top: 8px; }
 .hook-banner p.hook-teaser.hidden { display: none; }
 .hook-banner p.hook-teaser strong { color: #bfe3ff; }
+.hook-banner p.hook-teaser[role="button"] { cursor: pointer; }
+.hook-banner p.hook-teaser[role="button"]:hover .hook-teaser-cta,
+.hook-banner p.hook-teaser[role="button"]:focus-visible .hook-teaser-cta { text-decoration: underline; }
+.hook-banner p.hook-teaser .hook-teaser-cta { color: #7dd3fc; white-space: nowrap; font-weight: 600; }
 .hook-banner p strong { color: #bfe3ff; }
 .hook-actions { display: flex; align-items: center; gap: 8px; }
 .btn.hook-cta {

@@ -125,7 +125,17 @@
       if (s.country && s.title && findCountry(s.country)) {
         hookPick = s.country;
         var t = s.title.length > 120 ? s.title.slice(0, 117) + "…" : s.title;
-        hookTeaser.innerHTML = "<strong>Trending in " + esc(s.country) + ":</strong> " + esc(t);
+        // SMA-649: the teaser headline itself is the click target. Tracking
+        // verified working (headless clicks fire hook_explore on both the
+        // late and queued-early paths), yet hook_explore stayed 0 against
+        // hook_shown 26-30 in 7d while the same visitors self-navigated
+        // (select_country 43-48). The generic CTA button is ignored; the
+        // headline is the value, so make IT clickable (see listener below).
+        hookTeaser.innerHTML = "<strong>Trending in " + esc(s.country) + ":</strong> " + esc(t)
+          + " <span class=\"hook-teaser-cta\">See its stories →</span>";
+        hookTeaser.setAttribute("role", "button");
+        hookTeaser.setAttribute("tabindex", "0");
+        hookTeaser.title = "See stories from " + s.country;
         hookTeaser.classList.remove("hidden");
         return;
       }
@@ -175,6 +185,22 @@
     hideHook();
     exploreFromHook();
   });
+  // SMA-649: clicking the teaser headline does exactly what Explore does —
+  // exploreFromHook() fires the same hook_explore event for the teased
+  // country, so the funnel stays comparable with the button path.
+  if (hookTeaser) {
+    hookTeaser.addEventListener("click", function () {
+      hideHook();
+      exploreFromHook();
+    });
+    hookTeaser.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        hideHook();
+        exploreFromHook();
+      }
+    });
+  }
   if (hookDismiss) hookDismiss.addEventListener("click", function () {
     trackEvent("hook_dismiss", {});
     hideHook();
