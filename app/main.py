@@ -228,28 +228,28 @@ def _app_page(title=None, description=None, canonical_path="/",
     )
     if title:
         page = page.replace(
-            "<title>Global News Map — Today's headlines from local news outlets worldwide</title>",
+            "<title>Global News Map — Free world news map of today's local headlines</title>",
             "<title>" + html.escape(title) + "</title>",
         )
         page = page.replace(
-            '<meta property="og:title" content="Global News Map — Today\'s headlines from local news outlets worldwide">',
+            '<meta property="og:title" content="Global News Map — Free world news map of today\'s local headlines">',
             '<meta property="og:title" content="' + html.escape(title, quote=True) + '">',
         )
         page = page.replace(
-            '<meta name="twitter:title" content="Global News Map — Today\'s headlines from local news outlets worldwide">',
+            '<meta name="twitter:title" content="Global News Map — Free world news map of today\'s local headlines">',
             '<meta name="twitter:title" content="' + html.escape(title, quote=True) + '">',
         )
     if description:
         page = page.replace(
-            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
+            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
             '<meta name="description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
+            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
             '<meta property="og:description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on an interactive world map. Updated every 6 hours.">',
+            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
             '<meta name="twitter:description" content="' + html.escape(description, quote=True) + '">',
         )
     canonical = "https://globalnewsmap.net" + canonical_path
