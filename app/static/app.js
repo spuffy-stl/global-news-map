@@ -56,22 +56,29 @@
   function stampVisit() {
     try { window.localStorage.setItem("gnm_last_visit", String(Date.now())); } catch (e) { /* storage unavailable — skip silently */ }
   }
+  // SMA-657: shared return-visit firing. Extracted from updateFreshBadge so
+  // deep-link landings can fire return_visit too — previously only the world
+  // view called updateFreshBadge, so a returning visitor landing on
+  // /country/<slug> or /region/<slug> never fired the event, yet stampVisit()
+  // still consumed their stamp (verified headless 2026-10-21: homepage
+  // re-visit fires {hours_away, new_count}; /country/france with a 30h-old
+  // stamp fired nothing and the stamp was overwritten).
+  function fireReturnVisit(items, showBadge) {
+    if (!lastVisitTs || returnVisitFired) return;
+    returnVisitFired = true;
+    var n = items ? items.filter(isNewStory).length : 0;
+    trackEvent("return_visit", {
+      hours_away: Math.round((Date.now() - lastVisitTs) / 3600000),
+      new_count: n
+    });
+    if (showBadge && n > 0) {
+      freshBadge.textContent = n + " new since your last visit";
+      freshBadge.classList.remove("hidden");
+    }
+  }
   function updateFreshBadge(items) {
     try {
-      var now = Date.now();
-      var last = lastVisitTs;
-      if (last > 0 && !returnVisitFired) {
-        returnVisitFired = true;
-        var n = items.filter(isNewStory).length;
-        trackEvent("return_visit", {
-          hours_away: Math.round((now - last) / 3600000),
-          new_count: n
-        });
-        if (n > 0) {
-          freshBadge.textContent = n + " new since your last visit";
-          freshBadge.classList.remove("hidden");
-        }
-      }
+      fireReturnVisit(items, true);
       stampVisit();
       // NOTE: lastVisitTs intentionally keeps the *previous* visit's timestamp
       // for the rest of this session, so NEW dots stay correct on drill-down
@@ -1276,6 +1283,17 @@
       // SMA-582: impression event so the hook funnel (shown → explore/dismiss)
       // has a denominator; previously only the two click events fired.
       trackEvent("hook_shown", {});
+    }
+    // SMA-657: deep-link landings never load world headlines, so
+    // updateFreshBadge() never runs for them — fire return_visit here from a
+    // lightweight top-headlines fetch (event only; the badge stays a
+    // world-view affordance). lastVisitTs is the session copy, so this must
+    // run regardless of the stampVisit() below overwriting the stored value.
+    if ((initialCountry || initialRegion) && lastVisitTs > 0 && !returnVisitFired) {
+      fetch("/api/top-headlines?limit=15")
+        .then(function (r) { return r.json(); })
+        .then(function (items) { fireReturnVisit(items, false); })
+        .catch(function () { fireReturnVisit(null, false); });
     }
     // SMA-524: stamp the visit on every page load, including deep links —
     // loadWorldHeadlines() also stamps via updateFreshBadge(), so world loads

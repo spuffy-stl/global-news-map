@@ -64,24 +64,47 @@ def main():
     headers = {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
     xml = fetch_sitemap()
     urls = re.findall(r"<loc>([^<]+)</loc>", xml)
-    results, coverage = [], {}
-    for u in urls:
+    # SMA-656: a single inspection takes ~7s through the egress proxy, so the
+    # old serial loop (165 URLs x ~8s) needed ~22 min and wrote only once at
+    # the very end — the detached auto-refresh (SMA-573) never survived that
+    # long in this VM, and the snapshot stayed frozen at the last committed
+    # version (2026-10-08) for 13 days despite daily kicks. Inspect in
+    # parallel (URL Inspection quota is 600/min; 8 workers is far under it)
+    # so a full refresh lands in ~3 min, and write the result atomically so
+    # readers never see a partial file.
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _inspect(u):
         r = inspect_url(u, headers)
         isr = (r.get("inspectionResult") or {}).get("indexStatusResult", {}) \
             if isinstance(r, dict) else {}
-        cov = isr.get("coverageState") or "error"
-        coverage[cov] = coverage.get(cov, 0) + 1
-        results.append({"url": u, "verdict": isr.get("verdict"),
-                        "coverage": cov, "lastCrawl": isr.get("lastCrawlTime")})
-        time.sleep(1.0)
+        return {"url": u, "verdict": isr.get("verdict"),
+                "coverage": isr.get("coverageState") or "error",
+                "lastCrawl": isr.get("lastCrawlTime")}
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        results = list(ex.map(_inspect, urls))
+    coverage = {}
+    for r in results:
+        coverage[r["coverage"]] = coverage.get(r["coverage"], 0) + 1
     indexed = sum(1 for r in results if r["coverage"] == "Submitted and indexed")
     snapshot = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "sitemap_urls": len(urls),
                 "indexed": indexed,
                 "by_coverage": coverage,
                 "results": results}
-    with open(OUT, "w") as f:
+    tmp = OUT + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(snapshot, f)
+    os.replace(tmp, OUT)
+    # Clear our own auto-refresh pid file so a stale pid never blocks a kick.
+    try:
+        pid_path = OUT + ".refresh.pid"
+        with open(pid_path) as f:
+            if int(f.read().strip()) == os.getpid():
+                os.remove(pid_path)
+    except Exception:
+        pass
     print(f"snapshot: {indexed}/{len(urls)} indexed -> {OUT}")
     print(json.dumps(coverage, indent=1))
 
