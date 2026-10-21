@@ -318,7 +318,46 @@ def _popular_countries_footer(n=20):
 
 @app.get("/")
 def index():
-    return HTMLResponse(_app_page(body_suffix=_popular_countries_footer()))
+    # SMA-665: the homepage was a pure JS shell (6,851 bytes, zero story
+    # content) while country pages server-render their headlines (SMA-399).
+    # Mirror that pattern here: a <noscript> top-stories block + NewsArticle
+    # JSON-LD from the same db.get_top_headlines() data /api/top-headlines
+    # serves, so crawlers, AI assistants, and no-JS readers get today's
+    # headlines in the HTML; JS users get the interactive panel as before.
+    try:
+        items = db.get_top_headlines(15)
+    except Exception:
+        items = []
+    cards = "\n".join(_story_card(it) for it in items) or (
+        "<p>No headlines yet — the latest crawl is still running.</p>"
+    )
+    today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
+    top = "".join(
+        f"<li>{html.escape(it.get('title') or '')}"
+        + (f" — {html.escape(it.get('source') or '')}" if it.get("source") else "")
+        + "</li>"
+        for it in items[:3]
+    )
+    noscript = (
+        '<noscript><main class="noscript-home">\n'
+        "<h1>Global News Map — Free world news map of today's local headlines</h1>\n"
+        '<section class="answer-summary" aria-label="Today\u2019s summary">\n'
+        f"<p>As of {today}, the Global News Map tracks headlines from 233 local "
+        f"news outlets across 141 countries, updated every 6 hours. "
+        f"Top stories right now:</p>\n"
+        + (f"<ol>\n{top}\n</ol>\n" if top else "")
+        + "</section>\n"
+        f"{cards}\n"
+        '<p><a href="/top">See all top headlines</a></p>\n'
+        "</main></noscript>"
+    )
+    return HTMLResponse(
+        _app_page(
+            body_prefix=noscript,
+            body_suffix=_popular_countries_footer(),
+            head_extra=_newsarticle_jsonld(items),
+        )
+    )
 
 
 @app.get("/sitemap.xml")

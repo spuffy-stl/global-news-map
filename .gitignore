@@ -11,3 +11,7 @@ data/*.db-*
 .linear-ops/
 analytics/sc_snapshot.json.refresh.pid
 analytics/sc_snapshot_refresh.log
+
+# SMA-656: runtime cache — a git-tracked copy froze the daily loop on a
+# stale committed snapshot (checkouts kept reverting fresh refresh writes)
+analytics/sc_snapshot.json
