@@ -218,6 +218,12 @@ def get_top_headlines(limit=15):
     one source). Select from a larger recent pool with per-country (<=3) and
     per-source (<=4) caps, preserving recency order, then backfill by recency
     if the caps leave the list short.
+
+    SMA-668: those caps still let the staggered crawl's freshest feeds fill
+    the list — live check 2026-10-22: 15 stories from just 5 countries /
+    5 sources (3 each). Tighten to per-country <=2, per-source <=2 and add
+    per-continent <=5, so the world list spans >=8 countries and >=4
+    continents; recency backfill still guarantees a full list.
     """
     pool_limit = max(limit * 20, 100)
     with _lock:
@@ -233,13 +239,19 @@ def get_top_headlines(limit=15):
         finally:
             conn.close()
     picked, deferred = [], []
-    per_country, per_source = {}, {}
+    per_country, per_source, per_continent = {}, {}, {}
     for row in pool:
         c, s = row.get("country"), row.get("source")
-        if per_country.get(c, 0) < 3 and per_source.get(s, 0) < 4:
+        cont = row.get("continent")
+        if (
+            per_country.get(c, 0) < 2
+            and per_source.get(s, 0) < 2
+            and per_continent.get(cont, 0) < 5
+        ):
             picked.append(row)
             per_country[c] = per_country.get(c, 0) + 1
             per_source[s] = per_source.get(s, 0) + 1
+            per_continent[cont] = per_continent.get(cont, 0) + 1
             if len(picked) >= limit:
                 return picked
         else:
