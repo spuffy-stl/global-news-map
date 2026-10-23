@@ -1057,23 +1057,63 @@
   var searchFocusFired = false;   // SMA-599: search funnel instrumentation
   var lastNoResultQuery = "";
 
+  // SMA-683: search was a raw substring match over the official names, so
+  // the names people actually type failed: 'usa', 'uae', 'britain',
+  // 'holland', 'czech republic', 'burma', 'türkiye' all returned zero
+  // results (GA: search_no_results on every search day, search_country
+  // ~never). Fix = normalize both sides (case, diacritics, punctuation),
+  // add an alias table keyed by admin name, and require whole-word matches
+  // for <=2-char query words so 'uk' stops matching only Ukraine and 'us'
+  // stops matching Russia/Austria.
+  function normSearch(s) {
+    return (s || "").toLowerCase().normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // strip combining diacritical marks
+      .replace(/[^a-z0-9]+/g, " ")
+      .replace(/\s+/g, " ").trim();
+  }
+
+  var SEARCH_ALIASES = {
+    "United States of America": ["usa", "us", "u s a", "america"],
+    "United Kingdom": ["uk", "u k", "britain", "great britain", "england",
+      "scotland", "wales", "northern ireland"],
+    "United Arab Emirates": ["uae", "u a e", "emirates"],
+    "Netherlands": ["holland"],
+    "Czechia": ["czech republic"],
+    "Myanmar": ["burma"],
+    "eSwatini": ["swaziland"],
+    "Turkey": ["turkiye"],
+    "Ivory Coast": ["cote d ivoire"],
+    "Democratic Republic of the Congo": ["drc", "dr congo", "congo kinshasa"],
+    "Republic of the Congo": ["congo brazzaville", "congo republic"],
+    "South Korea": ["republic of korea"],
+    "North Korea": ["dprk"],
+    "Russia": ["russian federation"],
+    "Iran": ["persia"],
+    "Palestine": ["west bank", "gaza"]
+  };
+
   function buildSearchIndex() {
     searchIndex = [];
     continents.forEach(function (c) {
       searchIndex.push({
         kind: "continent", label: c.name, sub: "",
-        hay: c.name.toLowerCase(), slug: c.slug
+        hay: normSearch(c.name), normLabel: normSearch(c.name), aliases: [],
+        slug: c.slug
       });
       c.regions.forEach(function (r) {
         searchIndex.push({
           kind: "region", label: r.name, sub: c.name,
-          hay: (r.name + " " + c.name).toLowerCase(),
+          hay: normSearch(r.name + " " + c.name),
+          normLabel: normSearch(r.name), aliases: [],
           contSlug: c.slug, slug: r.slug
         });
         r.countries.forEach(function (ct) {
+          var aliases = (SEARCH_ALIASES[ct.name] || []).map(normSearch);
           searchIndex.push({
             kind: "country", label: ct.label || ct.name, sub: r.name + " · " + c.name,
-            hay: ((ct.label || "") + " " + ct.name + " " + r.name).toLowerCase(),
+            hay: normSearch((ct.label || "") + " " + ct.name + " " + r.name +
+              " " + aliases.join(" ")),
+            normLabel: normSearch(ct.label || ct.name), aliases: aliases,
             admin: ct.name
           });
         });
@@ -1107,11 +1147,16 @@
   }
 
   function renderSearch(q) {
-    var query = q.trim().toLowerCase();
+    var query = normSearch(q);
     if (!query) { closeSearch(); return; }
-    var words = query.split(/\s+/);
+    var words = query.split(" ");
     var matches = searchIndex.filter(function (it) {
-      return words.every(function (w) { return it.hay.indexOf(w) !== -1; });
+      return words.every(function (w) {
+        // SMA-683: <=2-char words must match a whole haystack token, or
+        // 'uk' matches Ukraine and 'us' matches Russia/Austria.
+        if (w.length <= 2) return (" " + it.hay + " ").indexOf(" " + w + " ") !== -1;
+        return it.hay.indexOf(w) !== -1;
+      });
     });
     var rank = { country: 0, region: 1, continent: 2 };
     matches.sort(function (a, b) {
@@ -1120,9 +1165,9 @@
         (a.label < b.label ? -1 : a.label > b.label ? 1 : 0);
     });
     function score(it) {
-      var l = it.label.toLowerCase();
-      if (l === query) return 0;
-      if (l.indexOf(query) === 0) return 1;
+      if (it.normLabel === query) return 0;
+      if (it.aliases.indexOf(query) !== -1) return 0;  // SMA-683: exact alias
+      if (it.normLabel.indexOf(query) === 0) return 1;
       return 2;
     }
     searchMatches = matches.slice(0, 8);

@@ -513,6 +513,35 @@ def _country_summary(label, n_sources, source_word, items):
     )
 
 
+def _region_summary(region_name, n_countries, n_sources, source_word, items):
+    """Answer-friendly summary block for /region/<slug> (SMA-684, GEO).
+
+    Mirrors _country_summary (SMA-546): a single plain-HTML paragraph —
+    story count, outlet count, country count, top 3 headlines — inside the
+    page's <noscript> block so crawlers, no-JS readers, and AI assistants
+    fetching raw HTML get an extractable summary. AI Assistant referrals
+    engage at ~100% and region pages target the broad queries ('southeast
+    asia news') assistants answer, yet they were the only page type without
+    the block. Everything comes from the `items` already on the page."""
+    today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
+    story_word = "story" if len(items) == 1 else "stories"
+    country_word = "country" if n_countries == 1 else "countries"
+    top = "".join(
+        f"<li>{html.escape(it.get('title') or '')}"
+        + (f" — {html.escape(it.get('source') or '')}" if it.get("source") else "")
+        + "</li>"
+        for it in items[:3]
+    )
+    return (
+        '<section class="answer-summary" aria-label="Today\'s summary">\n'
+        f"<p>As of {today}, {html.escape(region_name)} has {len(items)} top {story_word} "
+        f"from {n_sources} local news {source_word} across {n_countries} {country_word} "
+        f"on the Global News Map.</p>\n"
+        + (f"<ol>\n{top}\n</ol>\n" if top else "")
+        + "</section>\n"
+    )
+
+
 @app.get("/country/{slug}")
 def country_page(slug: str):
     """Shareable deep link per country (SMA-399): the interactive app shell
@@ -637,6 +666,7 @@ def region_page(slug: str):
     noscript = (
         '<noscript><main class="noscript-country">\n'
         f"<h1>{html.escape(region_name)} News — Today's Headlines on the News Map</h1>\n"
+        f"{_region_summary(region_name, n_countries, n_sources, source_word, items)}"
         f"{cards}\n"
         '<p><a href="/">Back to the interactive world map</a></p>\n'
         "</main></noscript>"
