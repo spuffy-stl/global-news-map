@@ -770,6 +770,15 @@
     return fetch("/api/headlines?" + params + "&limit=15").then(function (r) { return r.json(); });
   }
 
+  // SMA-687: server-rendered stories (a [data-ssr] block inside #stories)
+  // stay on screen until the first fetch replaces them — the panel must
+  // never flash a spinner over real content that shipped in the HTML.
+  function setLoadingHint() {
+    if (!storiesEl.querySelector("[data-ssr]")) {
+      storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    }
+  }
+
   function loadWorldHeadlines() {
     // First-visit hook: show the freshest stories immediately so a new visitor
     // sees value without having to click anything (SMA-367), and every visit
@@ -777,7 +786,7 @@
     panelTitle.textContent = "Top stories right now";
     panelMeta.textContent = "";
     setShareCountry(null, null);
-    storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    setLoadingHint();
     fetch("/api/top-headlines?limit=15")
       .then(function (r) { return r.json(); })
       .then(function (items) {
@@ -814,7 +823,7 @@
     setShareCountry(null, null);
     if (zoom) zoomTo(c.lon, c.lat, Z_REGION + 0.3);
     panelTitle.textContent = c.name;
-    storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    setLoadingHint();
     panelMeta.textContent = "";
     fetchHeadlines("continent=" + encodeURIComponent(slug))
       .then(function (items) {
@@ -839,7 +848,7 @@
     setShareCountry(null, null);
     if (zoom && r.lat != null) zoomTo(r.lon, r.lat, Z_COUNTRY + 0.3);
     panelTitle.textContent = r.name;
-    storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    setLoadingHint();
     panelMeta.textContent = "";
     fetchHeadlines("region=" + encodeURIComponent(slug))
       .then(function (items) {
@@ -865,7 +874,7 @@
     setShareCountry(f.country.label, admin);
     if (zoom && f.country.lat != null) zoomTo(f.country.lon, f.country.lat, Math.max(d3.zoomTransform(svg.node()).k, 5));
     var ct = f.country;
-    storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+    setLoadingHint();
     panelMeta.textContent = "";
     fetchHeadlines("country=" + encodeURIComponent(admin))
       .then(function (items) {
