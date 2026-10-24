@@ -550,6 +550,40 @@ def get_status():
             conn.close()
 
 
+def search_headlines(query, limit=8):
+    """SMA-691: topic search over fresh headlines. Every query word (>=2
+    chars, max 5) must appear in the title or summary (LIKE on ~14k rows
+    is milliseconds; FTS5 would need a shadow table + triggers for the
+    same result set). Freshness follows the same predicate as panels."""
+    words = [w for w in (query or "").lower().split() if len(w) >= 2][:5]
+    if not words:
+        return []
+    clauses, params = [], []
+    for w in words:
+        esc = w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        clauses.append(
+            "(LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(summary) LIKE ? ESCAPE '\\')"
+        )
+        params.extend(["%" + esc + "%", "%" + esc + "%"])
+    cut_fresh, cut_fallback = _fresh_cutoffs()
+    sql = (
+        "SELECT continent, region, country, title, summary, url, source,"
+        " published_at, fetched_at FROM headlines WHERE "
+        + _FRESH_PREDICATE
+        + " AND "
+        + " AND ".join(clauses)
+        + " ORDER BY (published_at IS NULL) ASC,"
+          " COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?"
+    )
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(sql, [cut_fresh, cut_fallback, cut_fresh, *params, limit])
+            return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+
 def get_country_counts():
     """ADMIN name -> fresh story count (SMA-692: only stories inside the
     freshness window count, so countries whose feeds died drop off the map

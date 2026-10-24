@@ -1082,6 +1082,11 @@
   var searchSel = -1;
   var searchFocusFired = false;   // SMA-599: search funnel instrumentation
   var lastNoResultQuery = "";
+  // SMA-691: unified dropdown entries (places + story results), the
+  // debounced story-fetch token, and recent picks for the empty state.
+  var searchEntries = [];
+  var searchFetchSeq = 0;
+  var searchTimer = null;
 
   // SMA-683: search was a raw substring match over the official names, so
   // the names people actually type failed: 'usa', 'uae', 'britain',
@@ -1151,9 +1156,54 @@
     closeSearch();
     searchInput.value = "";
     trackEvent("search_country", { kind: item.kind, value: item.label });
+    rememberSearch(item);
     if (item.kind === "country") selectCountry(item.admin, true);
     else if (item.kind === "region") selectRegion(item.contSlug, item.slug, true);
     else selectContinent(item.slug, true);
+  }
+
+  // SMA-691: story results open the story's country view (per the design
+  // board, story results link to country pages) and report on their own
+  // GA event so the funnel can separate place picks from story picks.
+  function storyPick(story) {
+    closeSearch();
+    searchInput.value = "";
+    trackEvent("search_story", { country: story.country || "", source: story.source || "" });
+    if (story.country && findCountry(story.country)) {
+      selectCountry(story.country, true);
+    } else if (story.url) {
+      window.open(story.url, "_blank", "noopener");
+    }
+  }
+
+  function pickEntry(entry) {
+    if (!entry) return;
+    if (entry.type === "story") storyPick(entry.story);
+    else searchPick(entry.item);
+  }
+
+  // SMA-691: recent picks for the search empty state (design board).
+  function rememberSearch(item) {
+    try {
+      var rec = JSON.parse(localStorage.getItem("gnm_recent_searches") || "[]");
+      rec = rec.filter(function (r) { return r.label !== item.label; });
+      rec.unshift({
+        kind: item.kind, label: item.label, admin: item.admin || null,
+        contSlug: item.contSlug || null, slug: item.slug || null
+      });
+      localStorage.setItem("gnm_recent_searches", JSON.stringify(rec.slice(0, 5)));
+    } catch (e) { /* private mode */ }
+  }
+
+  function recentSearchItems() {
+    try {
+      var rec = JSON.parse(localStorage.getItem("gnm_recent_searches") || "[]");
+      return rec.map(function (r) {
+        return searchIndex.filter(function (it) {
+          return it.kind === r.kind && it.label === r.label;
+        })[0];
+      }).filter(Boolean);
+    } catch (e) { return []; }
   }
 
   function closeSearch() {
@@ -1161,7 +1211,10 @@
     searchResultsEl.innerHTML = "";
     searchInput.setAttribute("aria-expanded", "false");
     searchMatches = [];
+    searchEntries = [];
     searchSel = -1;
+    searchFetchSeq++;  // invalidate any in-flight story fetch
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
   }
 
   function paintSearchSel() {
@@ -1172,9 +1225,49 @@
     }
   }
 
+  function paintSearchList(rawQuery, storiesPending) {
+    var places = searchEntries.filter(function (e) { return e.type === "place"; });
+    var stories = searchEntries.filter(function (e) { return e.type === "story"; });
+    var html = "";
+    if (places.length) {
+      html += '<li class="search-group">Places</li>' + places.map(function (e) {
+        var it = e.item, i = searchEntries.indexOf(e);
+        return '<li role="option" aria-selected="false">' +
+          '<button type="button" class="search-item" data-i="' + i + '">' +
+          esc(it.label) +
+          (it.sub ? ' <span class="sub">' + esc(it.sub) + "</span>" : "") +
+          '<span class="kind">' + it.kind + "</span></button></li>";
+      }).join("");
+    }
+    if (stories.length) {
+      html += '<li class="search-group">Stories</li>' + stories.map(function (e) {
+        var s = e.story, i = searchEntries.indexOf(e);
+        var meta = [s.country, s.source].filter(Boolean).join(" · ");
+        var when = s.published_at ? relTime(s.published_at) : "";
+        return '<li role="option" aria-selected="false">' +
+          '<button type="button" class="search-item search-story" data-i="' + i + '">' +
+          '<span class="story-title">' + esc(s.title) + "</span>" +
+          (meta ? ' <span class="sub">' + esc(meta) + (when ? " · " + esc(when) : "") + "</span>" : "") +
+          '<span class="kind">story</span></button></li>';
+      }).join("");
+    }
+    if (!html) {
+      html = storiesPending
+        ? '<li class="search-empty">Searching headlines…</li>'
+        : '<li class="search-empty">No matches for <strong>' +
+          esc((rawQuery || "").trim()) +
+          '</strong> — try a country, a region, or a topic like “election”.</li>';
+    }
+    searchResultsEl.innerHTML = html;
+    searchResultsEl.classList.remove("hidden");
+    searchInput.setAttribute("aria-expanded", "true");
+  }
+
   function renderSearch(q) {
     var query = normSearch(q);
-    if (!query) { closeSearch(); return; }
+    if (!query) { renderSearchHome(); return; }
+    searchFetchSeq++;
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
     var words = query.split(" ");
     var matches = searchIndex.filter(function (it) {
       return words.every(function (w) {
@@ -1197,20 +1290,64 @@
       return 2;
     }
     searchMatches = matches.slice(0, 8);
+    searchEntries = searchMatches.map(function (it) { return { type: "place", item: it }; });
     searchSel = -1;
-    if (!searchMatches.length) {
-      // SMA-599: no-result queries are the diagnosable half of search —
-      // fire once per distinct query so GA can separate "never tried"
-      // from "tried and failed".
-      if (lastNoResultQuery !== query) {
-        lastNoResultQuery = query;
-        trackEvent("search_no_results", { query: query.slice(0, 40) });
-      }
-      searchResultsEl.innerHTML =
-        '<li class="search-empty">No place matches <strong>' + esc(q.trim()) +
-        '</strong> — try a country or region name.</li>';
-    } else {
-      searchResultsEl.innerHTML = searchMatches.map(function (it, i) {
+    var wantsStories = query.replace(/ /g, "").length >= 2;
+    paintSearchList(q, wantsStories);
+    // SMA-691: story results arrive async; only a query with neither
+    // places nor stories counts as a no-result search.
+    if (wantsStories) {
+      var seq = searchFetchSeq;
+      searchTimer = setTimeout(function () {
+        fetch("/api/search?q=" + encodeURIComponent(q.trim()) + "&limit=6")
+          .then(function (r) { return r.json(); })
+          .then(function (stories) {
+            if (seq !== searchFetchSeq) return;  // query moved on
+            stories = (stories || []).slice(0, 6);
+            if (stories.length) {
+              searchEntries = searchEntries.concat(stories.map(function (s) {
+                return { type: "story", story: s };
+              }));
+              searchSel = -1;
+              paintSearchList(q);
+            } else if (!searchMatches.length) {
+              // SMA-599: fire once per distinct query so GA can separate
+              // "never tried" from "tried and failed".
+              if (lastNoResultQuery !== query) {
+                lastNoResultQuery = query;
+                trackEvent("search_no_results", { query: query.slice(0, 40) });
+              }
+              paintSearchList(q);
+            }
+          })
+          .catch(function () {
+            // Places remain usable on their own; just clear the
+            // "searching" placeholder if nothing else is showing.
+            if (seq === searchFetchSeq && !searchEntries.length) paintSearchList(q);
+          });
+      }, 220);
+    }
+  }
+
+  // SMA-691: empty-query state from the design board — recent picks,
+  // then the most-covered places.
+  function renderSearchHome() {
+    searchFetchSeq++;
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
+    if (!searchIndex.length) { closeSearch(); return; }
+    var recents = recentSearchItems();
+    var popular = searchIndex
+      .filter(function (it) { return it.kind === "country"; })
+      .sort(function (a, b) {
+        return (hierarchyStoryCount(b.admin) - hierarchyStoryCount(a.admin));
+      })
+      .slice(0, 6);
+    searchEntries = [];
+    var html = "";
+    if (recents.length) {
+      html += '<li class="search-group">Recent</li>' + recents.map(function (it) {
+        var i = searchEntries.length;
+        searchEntries.push({ type: "place", item: it });
         return '<li role="option" aria-selected="false">' +
           '<button type="button" class="search-item" data-i="' + i + '">' +
           esc(it.label) +
@@ -1218,8 +1355,30 @@
           '<span class="kind">' + it.kind + "</span></button></li>";
       }).join("");
     }
+    html += '<li class="search-group">Popular places</li>' + popular.map(function (it) {
+      var i = searchEntries.length;
+      searchEntries.push({ type: "place", item: it });
+      return '<li role="option" aria-selected="false">' +
+        '<button type="button" class="search-item" data-i="' + i + '">' +
+        esc(it.label) +
+        (it.sub ? ' <span class="sub">' + esc(it.sub) + "</span>" : "") +
+        '<span class="kind">' + hierarchyStoryCount(it.admin) + " stories</span></button></li>";
+    }).join("");
+    searchSel = -1;
+    searchMatches = [];
+    searchResultsEl.innerHTML = html;
     searchResultsEl.classList.remove("hidden");
     searchInput.setAttribute("aria-expanded", "true");
+  }
+
+  function hierarchyStoryCount(admin) {
+    var n = 0;
+    continents.forEach(function (c) {
+      c.regions.forEach(function (r) {
+        r.countries.forEach(function (ct) { if (ct.name === admin) n = ct.stories || 0; });
+      });
+    });
+    return n;
   }
 
   // SMA-599: funnel denominator — search_country only fires on a pick, so
@@ -1227,9 +1386,13 @@
   // "invisible". Fire once per page load on first focus.
   searchInput.addEventListener("focus", function () {
     searchInput.classList.remove("attract"); // SMA-625: attention pulse ends at first use
-    if (searchFocusFired) return;
-    searchFocusFired = true;
-    trackEvent("search_focus", {});
+    if (!searchFocusFired) {
+      searchFocusFired = true;
+      trackEvent("search_focus", {});
+    }
+    // SMA-691: focusing an empty box opens the home state (recent +
+    // popular places) from the design board.
+    if (!searchInput.value) renderSearchHome();
   });
 
   // SMA-599: "/" focuses search from anywhere (unless already typing).
@@ -1252,7 +1415,7 @@
     if (searchResultsEl.classList.contains("hidden")) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
-      var n = searchMatches.length;
+      var n = searchEntries.length;
       if (!n) return;
       searchSel = e.key === "ArrowDown"
         ? (searchSel + 1) % n
@@ -1260,16 +1423,14 @@
       paintSearchSel();
     } else if (e.key === "Enter") {
       e.preventDefault();
-      var item = searchMatches[searchSel >= 0 ? searchSel : 0];
-      if (item) searchPick(item);
+      pickEntry(searchEntries[searchSel >= 0 ? searchSel : 0]);
     }
   });
 
   searchResultsEl.addEventListener("click", function (e) {
     var btn = e.target && e.target.closest ? e.target.closest(".search-item") : null;
     if (!btn) return;
-    var item = searchMatches[parseInt(btn.getAttribute("data-i"), 10)];
-    if (item) searchPick(item);
+    pickEntry(searchEntries[parseInt(btn.getAttribute("data-i"), 10)]);
   });
 
   document.addEventListener("click", function (e) {
