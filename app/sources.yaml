@@ -160,8 +160,8 @@ continents:
                 url: https://www.lanacion.com.py/arc/outboundfeeds/rss/?outputType=xml
           - name: Uruguay
             sources:
-              - name: MercoPress
-                url: https://en.mercopress.com/rss/
+              - name: El País
+                url: https://www.elpais.com.uy/rss
   - slug: europe
     name: Europe
     lat: 50
@@ -184,14 +184,14 @@ continents:
                 url: https://www.thejournal.ie/feed/
           - name: France
             sources:
-              - name: France 24 English
-                url: https://www.france24.com/en/rss
               - name: Le Monde
                 url: https://www.lemonde.fr/rss/une.xml
+              - name: Le Monde English
+                url: https://www.lemonde.fr/en/rss/une.xml
           - name: Germany
             sources:
-              - name: DW
-                url: https://rss.dw.com/rdf/rss-en-all
+              - name: Tagesschau
+                url: https://www.tagesschau.de/xml/rss2
               - name: DER SPIEGEL International
                 url: https://www.spiegel.de/international/index.rss
           - name: Netherlands
@@ -202,14 +202,14 @@ continents:
                 url: https://www.dutchnews.nl/feed/
           - name: Belgium
             sources:
-              - name: The Local Belgium
-                url: https://feeds.thelocal.com/rss/builder/be
+              - name: The Bulletin
+                url: https://www.thebulletin.be/rss.xml
           - name: Spain
             sources:
               - name: El País English
                 url: https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada
-              - name: The Local Spain
-                url: https://feeds.thelocal.com/rss/builder/es
+              - name: El Mundo
+                url: https://e00-elmundo.uecdn.es/elmundo/rss/portada.xml
           - name: Portugal
             sources:
               - name: The Portugal News
@@ -220,35 +220,41 @@ continents:
             sources:
               - name: ANSA English
                 url: https://www.ansa.it/english/news/english_nr_rss.xml
-              - name: The Local Italy
-                url: https://feeds.thelocal.com/rss/builder/it
+              - name: La Repubblica
+                url: https://www.repubblica.it/rss/homepage/rss2.0.xml
           - name: Switzerland
             sources:
-              - name: The Local Switzerland
-                url: https://feeds.thelocal.com/rss/builder/ch
+              - name: NZZ
+                url: https://www.nzz.ch/startseite.rss
               - name: Le News
                 url: https://lenews.ch/feed/
           - name: Austria
             sources:
-              - name: The Local Austria
-                url: https://feeds.thelocal.com/rss/builder/at
+              - name: ORF
+                url: https://rss.orf.at/news.xml
+              - name: Der Standard
+                url: https://www.derstandard.at/rss
       - slug: nordics
         name: Nordics
         countries:
           - name: Sweden
             sources:
-              - name: The Local Sweden
-                url: https://feeds.thelocal.com/rss/builder/se
               - name: Sweden Herald
                 url: https://swedenherald.com/rss.xml
+              - name: SVT Nyheter
+                url: https://www.svt.se/nyheter/rss.xml
           - name: Norway
             sources:
-              - name: The Local Norway
-                url: https://feeds.thelocal.com/rss/builder/no
+              - name: NRK
+                url: https://www.nrk.no/nyheter/siste.rss
+              - name: VG
+                url: https://www.vg.no/rss/feed/
           - name: Denmark
             sources:
-              - name: The Local Denmark
-                url: https://feeds.thelocal.com/rss/builder/dk
+              - name: DR
+                url: https://www.dr.dk/nyheder/service/feeds/allenyheder
+              - name: The Copenhagen Post
+                url: https://cphpost.dk/feed/
           - name: Finland
             sources:
               - name: Yle News English
@@ -266,8 +272,10 @@ continents:
         countries:
           - name: Czechia
             sources:
-              - name: Radio Prague International
-                url: https://english.radio.cz/rcz-rss/en
+              - name: iDnes
+                url: https://servis.idnes.cz/rss.aspx?c=zpravy
+              - name: Novinky
+                url: https://www.novinky.cz/rss
           - name: Poland
             sources:
               - name: Notes from Poland
@@ -547,8 +555,8 @@ continents:
                 url: https://www.standardmedia.co.ke/rss/headlines.php
               - name: Capital News
                 url: https://capitalfm.africa/news/feed/
-              - name: The EastAfrican
-                url: https://www.theeastafrican.co.ke/rss.xml
+              - name: People Daily
+                url: https://peopledaily.digital/feed/
           - name: Uganda
             sources:
               - name: PML Daily
@@ -601,8 +609,8 @@ continents:
             sources:
               - name: Daily Maverick
                 url: https://www.dailymaverick.co.za/dmrss/
-              - name: The South African
-                url: https://www.thesouthafrican.com/feed/
+              - name: IOL
+                url: https://www.iol.co.za/rss
               - name: SABC News
                 url: https://www.sabcnews.com/sabcnews/feed/
           - name: Namibia
@@ -675,10 +683,10 @@ continents:
             sources:
               - name: Khaleej Times
                 url: https://www.khaleejtimes.com/api/v1/collections/uae.rss
+              - name: Gulf News
+                url: https://gulfnews.com/feed
           - name: Qatar
             sources:
-              - name: Al Jazeera
-                url: https://www.aljazeera.com/xml/rss/all.xml
               - name: Doha News
                 url: https://dohanews.co/feed
           - name: Kuwait
@@ -734,8 +742,8 @@ continents:
             sources:
               - name: Japan Times
                 url: https://www.japantimes.co.jp/news/feed/
-              - name: Nikkei Asia
-                url: https://asia.nikkei.com/rss/feed/nar
+              - name: Japan Today
+                url: https://japantoday.com/feed
           - name: North Korea
             sources: []
           - name: South Korea
@@ -755,10 +763,14 @@ continents:
             sources:
               - name: Philstar
                 url: https://www.philstar.com/rss/world
+              - name: Rappler
+                url: https://www.rappler.com/feed/
           - name: Vietnam
             sources:
               - name: VnExpress International
                 url: https://e.vnexpress.net/rss/news.rss
+              - name: Tuoi Tre News
+                url: https://tuoitrenews.vn/rss
           - name: Laos
             sources:
               - name: Laotian Times
@@ -800,8 +812,8 @@ continents:
         countries:
           - name: Bangladesh
             sources:
-              - name: The Daily Star
-                url: https://www.thedailystar.net/frontpage/rss.xml
+              - name: Prothom Alo English
+                url: https://en.prothomalo.com/feed
           - name: India
             sources:
               - name: The Hindu
@@ -848,6 +860,8 @@ continents:
             sources:
               - name: ABC News
                 url: https://www.abc.net.au/news/feed/51120/rss.xml
+              - name: The Sydney Morning Herald
+                url: https://www.smh.com.au/rss/feed.xml
           - name: New Zealand
             sources:
               - name: RNZ
