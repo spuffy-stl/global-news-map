@@ -8,6 +8,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
@@ -119,6 +120,73 @@ def _story_card(it):
     )
 
 
+def _rel_time(iso):
+    """'3h ago' — mirror of relTime() in app.js for server-rendered cards."""
+    if not iso:
+        return ""
+    try:
+        t = datetime.fromisoformat(iso)
+    except (ValueError, TypeError):
+        return ""
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    s = max(0.0, (datetime.now(timezone.utc) - t).total_seconds())
+    if s < 60:
+        return "just now"
+    if s < 3600:
+        return f"{int(s // 60)}m ago"
+    if s < 86400:
+        return f"{int(s // 3600)}h ago"
+    return f"{int(s // 86400)}d ago"
+
+
+def _panel_card(it, level):
+    """Server-rendered twin of storyCard() in app.js (SMA-687): same
+    structure and classes, so the panel's first paint (this markup, inside
+    #stories) is visually identical to what renderStories() swaps in after
+    the first fetch. level is 'world' | 'continent' | 'region' | 'country';
+    the country label link is omitted on country pages (SMA-690 anatomy)."""
+    title = html.escape(it.get("title") or "")
+    raw_url = it.get("url") or "#"
+    url = html.escape(raw_url, quote=True)
+    source = html.escape(it.get("source") or "")
+    country = it.get("country") or ""
+    when = _rel_time(it.get("published_at") or it.get("fetched_at"))
+    favicon = ""
+    try:
+        host = urlparse(raw_url).hostname or ""
+        if host:
+            host = host[4:] if host.startswith("www.") else host
+            favicon = (
+                '<img class="favicon" src="https://www.google.com/s2/favicons?domain='
+                f'{html.escape(host, quote=True)}&sz=32" alt="" loading="lazy" '
+                'onerror="this.remove()">'
+            )
+    except Exception:
+        favicon = ""
+    country_link = ""
+    if level != "country" and country:
+        country_link = (
+            f'<a class="story-country" href="/country/{country_slug(country)}">'
+            f"{html.escape(country)}</a>"
+        )
+    summary_html = ""
+    if it.get("summary"):
+        summary_html = f"<p>{html.escape(it.get('summary') or '')}</p>"
+    cta_source = f" at {source}" if source else ""
+    return (
+        f'<article class="story" data-source="{html.escape(it.get("source") or "", quote=True)}">'
+        f'<div class="meta">{country_link}'
+        f'<span class="story-source">{source}</span>'
+        f"<span>{when}</span></div>"
+        f'<h3>{favicon}<a href="{url}" target="_blank" rel="noopener">{title}</a></h3>'
+        f"{summary_html}"
+        f'<div class="story-cta"><a href="{url}" target="_blank" rel="noopener">'
+        f"Read the full story{cta_source} →</a></div>"
+        "</article>"
+    )
+
+
 def run_crawl(continents=None):
     try:
         crawler.crawl_all(continents=continents)
@@ -211,13 +279,18 @@ def ga4_snippet(measurement_id):
 
 def _app_page(title=None, description=None, canonical_path="/",
               initial_country=None, initial_region=None, body_prefix="", head_extra="",
-              body_suffix=""):
+              body_suffix="", panel_title=None, panel_meta=None, stories_html=None):
     """Render the interactive app shell with per-page head tags (SMA-380,
     SMA-399). When initial_country (an ADMIN name) is given, the client boots
     straight into that country view; initial_region (a (cont_slug, region_slug)
-    pair, SMA-511) boots into a region view; body_prefix (e.g. a <noscript>
-    headline list) gives crawlers and no-JS readers content without JavaScript.
-    body_suffix (e.g. a link footer, SMA-550) renders after the app shell."""
+    pair, SMA-511) boots into a region view; body_prefix (e.g. server-rendered
+    nav links) gives crawlers and no-JS readers content without JavaScript.
+    body_suffix (e.g. a link footer, SMA-550) renders after the app shell.
+    SMA-687: panel_title/panel_meta/stories_html pre-fill the story panel
+    with real markup inside #stories (wrapped in a [data-ssr] block), so
+    first paint — and Googlebot's render — shows actual headlines instead
+    of a 'Loading headlines…' shell; renderStories() replaces the block on
+    the first fetch."""
     page = (
         INDEX_HTML.replace(
             GA4_PLACEHOLDER,
@@ -275,6 +348,21 @@ def _app_page(title=None, description=None, canonical_path="/",
         )
     if head_extra:
         page = page.replace("</head>", head_extra + "\n</head>", 1)
+    if panel_title is not None:
+        page = page.replace(
+            '<h2 id="panelTitle">Top stories</h2>',
+            '<h2 id="panelTitle">' + html.escape(panel_title) + "</h2>",
+        )
+    if panel_meta is not None:
+        page = page.replace(
+            '<div id="panelMeta" class="panel-meta"></div>',
+            '<div id="panelMeta" class="panel-meta">' + html.escape(panel_meta) + "</div>",
+        )
+    if stories_html is not None:
+        page = page.replace(
+            '<p class="hint">Select a region on the map to see its top headlines.</p>',
+            '<div data-ssr="1">' + stories_html + "</div>",
+        )
     if body_prefix:
         page = page.replace("<body>", "<body>\n" + body_prefix, 1)
     if body_suffix:
@@ -320,15 +408,16 @@ def _popular_countries_footer(n=20):
 def index():
     # SMA-665: the homepage was a pure JS shell (6,851 bytes, zero story
     # content) while country pages server-render their headlines (SMA-399).
-    # Mirror that pattern here: a <noscript> top-stories block + NewsArticle
-    # JSON-LD from the same db.get_top_headlines() data /api/top-headlines
-    # serves, so crawlers, AI assistants, and no-JS readers get today's
-    # headlines in the HTML; JS users get the interactive panel as before.
+    # SMA-687: that SSR lived inside <noscript>, which Googlebot largely
+    # ignores — the indexed page was the app shell. Now the summary + cards
+    # render as real markup inside #stories (see _app_page), identical in
+    # structure to the client cards; renderStories() replaces them on the
+    # first fetch, and setLoadingHint() keeps them on screen until then.
     try:
         items = db.get_top_headlines(15)
     except Exception:
         items = []
-    cards = "\n".join(_story_card(it) for it in items) or (
+    cards = "\n".join(_panel_card(it, "world") for it in items) or (
         "<p>No headlines yet — the latest crawl is still running.</p>"
     )
     today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
@@ -338,9 +427,7 @@ def index():
         + "</li>"
         for it in items[:3]
     )
-    noscript = (
-        '<noscript><main class="noscript-home">\n'
-        "<h1>Global News Map — Free world news map of today's local headlines</h1>\n"
+    stories_html = (
         '<section class="answer-summary" aria-label="Today\u2019s summary">\n'
         f"<p>As of {today}, the Global News Map tracks headlines from 233 local "
         f"news outlets across 141 countries, updated every 6 hours. "
@@ -349,13 +436,17 @@ def index():
         + "</section>\n"
         f"{cards}\n"
         '<p><a href="/top">See all top headlines</a></p>\n'
-        "</main></noscript>"
     )
+    panel_meta = ""
+    if items:
+        panel_meta = "newest " + _rel_time(items[0].get("published_at") or items[0].get("fetched_at"))
     return HTMLResponse(
         _app_page(
-            body_prefix=noscript,
             body_suffix=_popular_countries_footer(),
             head_extra=_newsarticle_jsonld(items),
+            panel_title="Top stories right now",
+            panel_meta=panel_meta,
+            stories_html=stories_html,
         )
     )
 
@@ -506,9 +597,10 @@ def _country_summary(label, n_sources, source_word, items):
     """Answer-friendly summary block for /country/<slug> (SMA-546, GEO).
 
     A single plain-HTML paragraph summarizing today's stories — story count,
-    outlet count, and the top 3 headlines. Rendered inside the existing
-    <noscript> block so crawlers, no-JS readers, and AI assistants fetching
-    the raw HTML all see it; JS users see the interactive panel instead.
+    outlet count, and the top 3 headlines. Rendered as real markup at the top
+    of the story panel (SMA-687; previously inside a <noscript> block) so
+    crawlers, no-JS readers, and AI assistants fetching the raw HTML all see
+    it; the client's first fetch replaces the panel content as before.
     Everything comes from the same `items` already rendered on the page —
     nothing invented, regenerates with each crawl (every 6 hours)."""
     today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
@@ -532,9 +624,9 @@ def _region_summary(region_name, n_countries, n_sources, source_word, items):
     """Answer-friendly summary block for /region/<slug> (SMA-684, GEO).
 
     Mirrors _country_summary (SMA-546): a single plain-HTML paragraph —
-    story count, outlet count, country count, top 3 headlines — inside the
-    page's <noscript> block so crawlers, no-JS readers, and AI assistants
-    fetching raw HTML get an extractable summary. AI Assistant referrals
+    story count, outlet count, country count, top 3 headlines — rendered as
+    real markup at the top of the story panel (SMA-687) so crawlers, no-JS
+    readers, and AI assistants fetching raw HTML get an extractable summary. AI Assistant referrals
     engage at ~100% and region pages target the broad queries ('southeast
     asia news') assistants answer, yet they were the only page type without
     the block. Everything comes from the `items` already on the page."""
@@ -560,11 +652,11 @@ def _region_summary(region_name, n_countries, n_sources, source_word, items):
 @app.get("/country/{slug}")
 def country_page(slug: str):
     """Shareable deep link per country (SMA-399): the interactive app shell
-    with per-country <title>/meta/OG tags, a <noscript> server-rendered
-    headline list for crawlers and no-JS readers, and
-    window.GNM_INITIAL_COUNTRY so the client boots straight into the country
-    view (map zoom + story panel). The GA4 snippet (when configured) fires a
-    normal page_view, so deep-link landings are measurable per URL."""
+    with per-country <title>/meta/OG tags, server-rendered headlines as real
+    markup inside the story panel (SMA-687 — previously a <noscript> block),
+    and window.GNM_INITIAL_COUNTRY so the client boots straight into the
+    country view (map zoom + story panel). The GA4 snippet (when configured)
+    fires a normal page_view, so deep-link landings are measurable per URL."""
     country = _SLUG_TO_COUNTRY.get(slug)
     if country is None:
         return HTMLResponse(_country_not_found(slug), status_code=404)
@@ -581,17 +673,12 @@ def country_page(slug: str):
         "updated every 6 hours by the Global News Map."
     )
     items = db.get_headlines("country", admin, 15)
-    cards = "\n".join(_story_card(it) for it in items) or (
+    cards = "\n".join(_panel_card(it, "country") for it in items) or (
         f"<p>No fresh headlines for {html.escape(label)} right now — its local feeds have not published recently.</p>"
     )
-    noscript = (
-        '<noscript><main class="noscript-country">\n'
-        f"<h1>{html.escape(label)} News — Today's Headlines on the News Map</h1>\n"
-        f"{_country_summary(label, n_sources, source_word, items)}"
-        f"{cards}\n"
-        '<p><a href="/">Back to the interactive world map</a></p>\n'
-        "</main></noscript>"
-    )
+    # SMA-687: summary + cards are real markup inside #stories (previously
+    # a <noscript> block Googlebot largely ignored).
+    stories_html = _country_summary(label, n_sources, source_word, items) + cards
     # SMA-505: server-rendered breadcrumb + prev/next links. Real <a> tags
     # (the client's breadcrumb is buttons, invisible to crawlers) so organic
     # landings have an onward path and crawlers can follow country pages.
@@ -602,14 +689,18 @@ def country_page(slug: str):
     head_extra = _newsarticle_jsonld(items)
     if not items:
         head_extra += '\n<meta name="robots" content="noindex">'
+    _cont, _region = _SLUG_TO_PLACE[slug]
     return HTMLResponse(
         _app_page(
             title=title,
             description=description,
             canonical_path="/country/" + slug,
             initial_country=admin,
-            body_prefix=nav + noscript,
+            body_prefix=nav,
             head_extra=head_extra,
+            panel_title=label,
+            panel_meta=f"{len(items)} stories · {_region.get('name') or _region['slug']}",
+            stories_html=stories_html,
         )
     )
 
@@ -681,16 +772,15 @@ def region_page(slug: str):
         f"across {n_countries} countries in {region_name}, updated every 6 hours by the Global News Map."
     )
     items = db.get_headlines("region", slug, 15)
-    cards = "\n".join(_story_card(it) for it in items) or (
+    cards = "\n".join(_panel_card(it, "region") for it in items) or (
         f"<p>No fresh headlines for {html.escape(region_name)} right now — local feeds across the region have not published recently.</p>"
     )
-    noscript = (
-        '<noscript><main class="noscript-country">\n'
-        f"<h1>{html.escape(region_name)} News — Today's Headlines on the News Map</h1>\n"
-        f"{_region_summary(region_name, n_countries, n_sources, source_word, items)}"
-        f"{cards}\n"
-        '<p><a href="/">Back to the interactive world map</a></p>\n'
-        "</main></noscript>"
+    # SMA-687: summary + cards as real markup inside #stories (previously
+    # a <noscript> block); the region answer-summary ships with them.
+    stories_html = (
+        _region_summary(region_name, n_countries, n_sources, source_word, items)
+        + cards
+        + '\n<p><a href="/">Back to the interactive world map</a></p>\n'
     )
     nav = _region_nav(cont, region)
     # SMA-692: same delisting rule as country pages.
@@ -703,8 +793,14 @@ def region_page(slug: str):
             description=description,
             canonical_path="/region/" + slug,
             initial_region=(cont["slug"], region["slug"]),
-            body_prefix=nav + noscript,
+            body_prefix=nav,
             head_extra=head_extra,
+            panel_title=region_name,
+            panel_meta=(
+                f"{len(items)} stories · {n_countries} "
+                f"{'country' if n_countries == 1 else 'countries'}"
+            ),
+            stories_html=stories_html,
         )
     )
 
