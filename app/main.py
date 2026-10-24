@@ -921,6 +921,17 @@ def get_top_headlines(limit: int = Query(15, ge=1, le=50)):
     return db.get_top_headlines(limit)
 
 
+@app.get("/api/search")
+def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)):
+    """SMA-691: headline topic search behind the search box's Stories
+    group. Short/blank queries return nothing (place search is
+    client-side)."""
+    q = q.strip()
+    if len(q) < 2:
+        return []
+    return db.search_headlines(q, limit)
+
+
 @app.get("/api/status")
 def get_status():
     st = db.get_status()
