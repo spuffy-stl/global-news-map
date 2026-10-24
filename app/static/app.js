@@ -867,9 +867,15 @@
     trackEvent("stories_shown", { level: level, count: items.length });
     // SMA-549: keep the current country-view items for the share composer.
     shareItems = (level === "country") ? items : [];
-    if (window.innerWidth <= 900) {
+    // SMA-689: the panel used to scrollIntoView on EVERY render at mobile
+    // widths — including the boot world render, which scrolled the welcome
+    // hook and the map off-screen before the visitor saw either. Scroll
+    // only when the render answers an explicit post-boot selection
+    // (pendingPanelScroll, set by the select* functions / goWorld).
+    if (pendingPanelScroll && window.innerWidth <= 900) {
       document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
+    pendingPanelScroll = false;
   }
 
   function fetchHeadlines(params) {
@@ -909,7 +915,16 @@
       });
   }
 
+  // SMA-689: set by selectContinent/selectRegion/selectCountry/goWorld
+  // when (and only when) they run for an explicit post-boot selection;
+  // consumed by renderStories() to decide on the mobile panel scroll.
+  var pendingPanelScroll = false;
+  function noteSelectionScroll() {
+    pendingPanelScroll = navBooted && !restoringPop;
+  }
+
   function goWorld() {
+    noteSelectionScroll();
     active = { continent: null, region: null, country: null };
     markActive();
     trackEvent("select_world");
@@ -919,6 +934,7 @@
   }
 
   function selectContinent(slug, zoom) {
+    noteSelectionScroll();
     var c = findContinent(slug);
     if (!c) return;
     hideHook(); // SMA-561
@@ -944,6 +960,7 @@
   }
 
   function selectRegion(contSlug, slug, zoom) {
+    noteSelectionScroll();
     var r = findRegion(contSlug, slug);
     if (!r) return;
     hideHook(); // SMA-561
@@ -970,6 +987,7 @@
   }
 
   function selectCountry(admin, zoom) {
+    noteSelectionScroll();
     var f = findCountry(admin);
     if (!f) return;
     hideHook(); // SMA-561
