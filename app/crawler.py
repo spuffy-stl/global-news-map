@@ -51,20 +51,22 @@ def _published_iso(entry):
 
 
 def crawl_feed(feed):
-    """Fetch and parse one feed. Returns a list of headline dicts. Never raises."""
+    """Fetch and parse one feed. Returns (items, error): error is None on a
+    usable fetch, else a short string. Never raises. (SMA-692: the error
+    used to be swallowed, leaving feed health invisible.)"""
     try:
         raw = _fetch(feed["url"])
     except Exception as exc:
         log.warning("feed fetch failed: %s (%s): %s", feed["name"], feed["url"], exc)
-        return []
+        return [], "fetch: {}".format(str(exc)[:120])
     try:
         parsed = feedparser.parse(raw)
     except Exception as exc:
         log.warning("feed parse failed: %s: %s", feed["name"], exc)
-        return []
+        return [], "parse: {}".format(str(exc)[:120])
     if getattr(parsed, "bozo", False) and not parsed.entries:
         log.warning("feed bozo with no entries: %s", feed["name"])
-        return []
+        return [], "unparseable feed"
     items = []
     for entry in parsed.entries[:25]:
         # SMA-694: clean titles too — previously only summaries were
@@ -85,7 +87,7 @@ def crawl_feed(feed):
             }
         )
     time.sleep(1)  # be polite to publishers
-    return items
+    return items, None
 
 
 def crawl_all(continents=None):
@@ -111,7 +113,24 @@ def crawl_all(continents=None):
     counts = {}
     touched = set()
     for feed in feeds:
-        items = crawl_feed(feed)
+        items, error = crawl_feed(feed)
+        # SMA-692: record per-feed health (last success, item count, newest
+        # entry date) so dead/stale feeds are visible in /api/status instead
+        # of silently leaving countries stale.
+        newest = max(
+            (i["published_at"] for i in items if i.get("published_at")),
+            default=None,
+        )
+        if error is None and not items:
+            error = "no usable entries"
+        try:
+            db.record_feed_health(
+                url=feed["url"], name=feed["name"],
+                ok=error is None, item_count=len(items),
+                newest_entry_at=newest, error=error,
+            )
+        except Exception:
+            log.exception("feed health record failed for %s", feed["url"])
         subs = feed["subscribers"]
         if wanted is not None:
             subs = [s for s in subs if s["continent"] in wanted]

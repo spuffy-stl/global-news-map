@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Validate every feed URL in app/sources.yaml.
 
-Fetches each unique URL, requires HTTP 200 + a parseable RSS/Atom feed with
-at least MIN_ENTRIES entries that have title + link. Prints a per-feed report
-and a per-country coverage summary. Exits 1 if any country has zero working
+Fetches each unique URL with the CRAWLER's User-Agent (SMA-692 — this
+script used to send a Chrome UA, so feeds that block the crawler's
+GlobalNewsMap/1.0 agent passed validation and failed in production),
+requires HTTP 200 + a parseable RSS/Atom feed with at least MIN_ENTRIES
+entries that have title + link, and fails feeds whose newest entry is
+older than MAX_ENTRY_AGE_DAYS (a live-but-frozen feed is how Bangladesh
+ended up serving July 2022 stories). Prints a per-feed report and a
+per-country coverage summary. Exits 1 if any country has zero working
 feeds (gate for merging new sources).
 """
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -17,11 +23,15 @@ import requests
 import yaml
 
 MIN_ENTRIES = 3
+MAX_ENTRY_AGE_DAYS = 7
 WORKERS = 8
 TIMEOUT = 25
 
 SOURCES = os.path.join(os.path.dirname(__file__), "..", "app", "sources.yaml")
-UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+try:
+    from app.config import USER_AGENT as UA
+except Exception:
+    UA = "GlobalNewsMap/1.0 (world news map aggregator)"
 
 
 def check(url):
@@ -37,7 +47,24 @@ def check(url):
     good = [e for e in p.entries if (e.get("title") or "").strip() and (e.get("link") or "").strip()]
     if len(good) < MIN_ENTRIES:
         return ("no_entries", f"only {len(good)} usable entries (bozo={getattr(p, 'bozo', '?')})")
-    return ("ok", f"{len(good)} entries")
+    # SMA-692: a feed can be alive yet frozen (serving years-old items).
+    # Fail it when its newest dated entry is too old; undated feeds can't
+    # be judged and pass on entries alone.
+    dated = []
+    for e in good:
+        parsed = e.get("published_parsed") or e.get("updated_parsed")
+        if parsed:
+            try:
+                dated.append(datetime(*parsed[:6], tzinfo=timezone.utc))
+            except Exception:
+                pass
+    if dated:
+        newest = max(dated)
+        age = datetime.now(timezone.utc) - newest
+        if age > timedelta(days=MAX_ENTRY_AGE_DAYS):
+            return ("stale", f"newest entry {newest.date().isoformat()} is {age.days}d old (limit {MAX_ENTRY_AGE_DAYS}d)")
+        return ("ok", f"{len(good)} entries, newest {newest.date().isoformat()}")
+    return ("ok", f"{len(good)} entries (undated)")
 
 
 def main():
