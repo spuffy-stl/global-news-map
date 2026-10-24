@@ -7,7 +7,7 @@ six continent slugs) in SMA-360.
 import os
 import sqlite3
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import config
 
@@ -129,13 +129,59 @@ def init_db():
             conn.commit()
         finally:
             conn.close()
+    clamp_future_dates()
 
 
 def utcnow_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _sanitize_published_at(published_at, fallback_iso):
+    """SMA-693: feeds sometimes emit nonsense future dates (Taipei Times
+    date-only entries landing tomorrow, ADIAC items dated 2029/2030). A
+    future-dated row sorts above everything forever, pinning the world
+    list and emitting an invalid JSON-LD datePublished. Anything later
+    than now + 1h is replaced with the fetch time; unparseable values
+    are dropped (ordering then falls back to fetched_at)."""
+    if not published_at:
+        return None
+    try:
+        pub = datetime.fromisoformat(published_at)
+    except (ValueError, TypeError):
+        return None
+    if pub.tzinfo is None:
+        pub = pub.replace(tzinfo=timezone.utc)
+    horizon = datetime.now(timezone.utc) + timedelta(hours=1)
+    if pub > horizon:
+        return fallback_iso
+    return published_at
+
+
+def clamp_future_dates():
+    """One-shot cleanup for rows already stored with future dates.
+
+    Runs at startup (init_db) so a deploy immediately un-pins any world
+    list held hostage by a bad feed date. Returns rows fixed.
+    """
+    horizon = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "UPDATE headlines SET published_at = fetched_at"
+                " WHERE published_at IS NOT NULL AND published_at > ?",
+                (horizon,),
+            )
+            fixed = cur.rowcount
+            conn.commit()
+            return fixed
+        finally:
+            conn.close()
+
+
 def upsert_headline(continent, region, country, title, summary, url, source, published_at):
+    fetched = utcnow_iso()
+    published_at = _sanitize_published_at(published_at, fetched)
     with _lock:
         conn = _connect()
         try:
@@ -143,7 +189,7 @@ def upsert_headline(continent, region, country, title, summary, url, source, pub
                 """INSERT OR IGNORE INTO headlines
                    (continent, region, title, summary, url, source, published_at, fetched_at, country)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (continent, region, title, summary, url, source, published_at, utcnow_iso(), country),
+                (continent, region, title, summary, url, source, published_at, fetched, country),
             )
             conn.commit()
         finally:
@@ -224,6 +270,11 @@ def get_top_headlines(limit=15):
     5 sources (3 each). Tighten to per-country <=2, per-source <=2 and add
     per-continent <=5, so the world list spans >=8 countries and >=4
     continents; recency backfill still guarantees a full list.
+
+    SMA-693: undated items (published_at NULL) must rank below every dated
+    item — previously the COALESCE fell back to fetched_at, so a just-fetched
+    undated story outranked genuinely newer dated stories and took top
+    slots (live check 2026-10-22: 4 of the top 15 had published_at null).
     """
     pool_limit = max(limit * 20, 100)
     with _lock:
@@ -232,7 +283,8 @@ def get_top_headlines(limit=15):
             cur = conn.execute(
                 "SELECT continent, region, country, title, summary, url, source,"
                 " published_at, fetched_at FROM headlines"
-                " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?",
+                " ORDER BY (published_at IS NULL) ASC,"
+                " COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?",
                 (pool_limit,),
             )
             pool = [dict(r) for r in cur.fetchall()]
