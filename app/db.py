@@ -4,13 +4,20 @@ Headlines are tagged with the full taxonomy: continent > region > country
 (ADMIN name). Migrated from the old single `region` column (which held the
 six continent slugs) in SMA-360.
 """
+import math
 import os
 import sqlite3
 import threading
 from datetime import datetime, timedelta, timezone
 
 from . import config
-from .textclean import clean_summary, clean_title
+from .textclean import (
+    clean_summary,
+    clean_title,
+    is_non_latin,
+    normalize_title,
+    normalize_url,
+)
 
 _lock = threading.Lock()
 DB_PATH = os.path.join(config.DATA_DIR, "news.db")
@@ -27,6 +34,7 @@ CREATE TABLE IF NOT EXISTS headlines (
     source TEXT,
     published_at TEXT,
     fetched_at TEXT NOT NULL,
+    title_norm TEXT,
     UNIQUE(url, country)
 );
 """
@@ -36,6 +44,8 @@ CREATE INDEX IF NOT EXISTS idx_headlines_country_fetched
     ON headlines(country, fetched_at DESC);
 CREATE INDEX IF NOT EXISTS idx_headlines_continent_fetched
     ON headlines(continent, fetched_at DESC);
+CREATE INDEX IF NOT EXISTS idx_headlines_country_title
+    ON headlines(country, title_norm);
 """
 
 FEED_HEALTH_SCHEMA = """
@@ -76,6 +86,15 @@ def _migrate(conn):
         conn.execute("ALTER TABLE headlines ADD COLUMN region TEXT NOT NULL DEFAULT ''")
     if "country" not in cols:
         conn.execute("ALTER TABLE headlines ADD COLUMN country TEXT NOT NULL DEFAULT ''")
+    if "title_norm" not in cols:
+        # SMA-695: dedupe key (see textclean.normalize_title). Backfilled
+        # here so the insert-time 48h check works on pre-existing rows.
+        conn.execute("ALTER TABLE headlines ADD COLUMN title_norm TEXT")
+        for row in conn.execute("SELECT id, title FROM headlines").fetchall():
+            conn.execute(
+                "UPDATE headlines SET title_norm = ? WHERE id = ?",
+                (normalize_title(row["title"] or ""), row["id"]),
+            )
     _migrate_uniqueness(conn)
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_headlines_country_fetched "
@@ -119,13 +138,14 @@ def _migrate_uniqueness(conn):
             source TEXT,
             published_at TEXT,
             fetched_at TEXT NOT NULL,
+            title_norm TEXT,
             UNIQUE(url, country)
         )"""
     )
     conn.execute(
         """INSERT INTO headlines_new
-           (id, continent, region, country, title, summary, url, source, published_at, fetched_at)
-           SELECT id, continent, region, country, title, summary, url, source, published_at, fetched_at
+           (id, continent, region, country, title, summary, url, source, published_at, fetched_at, title_norm)
+           SELECT id, continent, region, country, title, summary, url, source, published_at, fetched_at, title_norm
            FROM headlines"""
     )
     conn.execute("DROP TABLE headlines")
@@ -222,14 +242,29 @@ def clean_stored_text():
 def upsert_headline(continent, region, country, title, summary, url, source, published_at):
     fetched = utcnow_iso()
     published_at = _sanitize_published_at(published_at, fetched)
+    # SMA-695: normalize the URL (utm_*/fragment stripped) so re-posts of
+    # the same story with fresh tracking strings hit UNIQUE(url, country),
+    # and skip stories whose normalized title already appeared in this
+    # country within 48h (re-posted live blogs, daily roundups).
+    url = normalize_url(url)
+    title_norm = normalize_title(title)
+    cutoff_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
     with _lock:
         conn = _connect()
         try:
+            if title_norm:
+                dupe = conn.execute(
+                    "SELECT 1 FROM headlines WHERE country = ? AND title_norm = ?"
+                    " AND fetched_at >= ? LIMIT 1",
+                    (country, title_norm, cutoff_48h),
+                ).fetchone()
+                if dupe:
+                    return
             conn.execute(
                 """INSERT OR IGNORE INTO headlines
-                   (continent, region, title, summary, url, source, published_at, fetched_at, country)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (continent, region, title, summary, url, source, published_at, fetched, country),
+                   (continent, region, title, summary, url, source, published_at, fetched_at, country, title_norm)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (continent, region, title, summary, url, source, published_at, fetched, country, title_norm),
             )
             conn.commit()
         finally:
@@ -307,27 +342,103 @@ _FRESH_PREDICATE = (
 )
 
 
+def _mix_panel(pool, limit, per_country_cap=None):
+    """SMA-695: turn a recency-ordered pool into a panel that reads like a
+    local front page instead of one feed's firehose.
+
+    - Duplicate normalized titles are dropped (newest occurrence wins) —
+      a title never appears twice in one panel, not even via backfill.
+    - Region/continent panels cap each country (rows beyond the cap are
+      deferred and only backfill if the panel would otherwise be short).
+    - Sources are interleaved round-robin (each source's stories stay in
+      recency order; buckets cycle in first-appearance order, so the
+      pool's newest story stays first). A source at the ~40% soft cap
+      yields while another under-cap source still has stories — dominance
+      survives only when the alternatives literally run out.
+    """
+    seen_titles = set()
+    rows, country_deferred = [], []
+    per_country_seen = {}
+    for row in pool:
+        norm = row.get("title_norm") or normalize_title(row.get("title") or "")
+        if norm and norm in seen_titles:
+            continue
+        if norm:
+            seen_titles.add(norm)
+        if per_country_cap is not None:
+            c = row.get("country")
+            per_country_seen[c] = per_country_seen.get(c, 0) + 1
+            if per_country_seen[c] > per_country_cap:
+                country_deferred.append(row)
+                continue
+        rows.append(row)
+
+    buckets, order = {}, []
+    for row in rows:
+        s = row.get("source")
+        if s not in buckets:
+            buckets[s] = []
+            order.append(s)
+        buckets[s].append(row)
+
+    source_cap = max(1, math.ceil(limit * 0.4))
+    counts = {s: 0 for s in order}
+    picked = []
+
+    def other_has_room(skip):
+        return any(
+            buckets[s] and counts[s] < source_cap
+            for s in order if s != skip
+        )
+
+    while len(picked) < limit:
+        progressed = False
+        for s in order:
+            if len(picked) >= limit:
+                break
+            if not buckets[s]:
+                continue
+            if counts[s] >= source_cap and other_has_room(s):
+                continue  # dominant source yields while alternatives last
+            picked.append(buckets[s].pop(0))
+            counts[s] += 1
+            progressed = True
+        if not progressed:
+            break
+    for row in country_deferred:
+        if len(picked) >= limit:
+            break
+        picked.append(row)
+    return picked[:limit]
+
+
 def get_headlines(level, key, limit=10):
     """level: 'continent' | 'region' | 'country'. Fresh stories only
-    (SMA-692 — see _FRESH_PREDICATE)."""
+    (SMA-692 — see _FRESH_PREDICATE), source-mixed (SMA-695)."""
     if level not in ("continent", "region", "country"):
         raise ValueError("bad level")
     cut_fresh, cut_fallback = _fresh_cutoffs()
+    pool_limit = max(limit * 10, 60)
     with _lock:
         conn = _connect()
         try:
             cur = conn.execute(
                 "SELECT continent, region, country, title, summary, url, source,"
-                " published_at, fetched_at FROM headlines WHERE {} = ?"
+                " published_at, fetched_at, title_norm FROM headlines WHERE {} = ?"
                 " AND {}"
                 " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?".format(
                     level, _FRESH_PREDICATE
                 ),
-                (key, cut_fresh, cut_fallback, cut_fresh, limit),
+                (key, cut_fresh, cut_fallback, cut_fresh, pool_limit),
             )
-            return [dict(r) for r in cur.fetchall()]
+            pool = [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
+    per_country_cap = None if level == "country" else max(2, limit // 3)
+    mixed = _mix_panel(pool, limit, per_country_cap=per_country_cap)
+    for row in mixed:
+        row.pop("title_norm", None)  # internal dedupe key, not API surface
+    return mixed
 
 
 def get_top_headlines(limit=15):
@@ -352,6 +463,11 @@ def get_top_headlines(limit=15):
 
     SMA-692: the world list is strictly fresh — no per-country fallback
     here; a week-old story never belongs in "Top stories right now".
+
+    SMA-695: duplicate normalized titles are dropped, and non-Latin-script
+    titles are deferred to the backfill so the list (and the hook teaser
+    that reads its first item) opens in a script most visitors can read;
+    they still fill the list when Latin-script stories run short.
     """
     pool_limit = max(limit * 20, 100)
     cut_fresh, _ = _fresh_cutoffs()
@@ -371,7 +487,14 @@ def get_top_headlines(limit=15):
             conn.close()
     picked, deferred = [], []
     per_country, per_source, per_continent = {}, {}, {}
+    seen_titles = set()
     for row in pool:
+        norm = normalize_title(row.get("title") or "")
+        if norm and norm in seen_titles:
+            continue  # duplicate title never appears twice
+        if is_non_latin(row.get("title") or ""):
+            deferred.append(row)
+            continue
         c, s = row.get("country"), row.get("source")
         cont = row.get("continent")
         if (
@@ -380,6 +503,8 @@ def get_top_headlines(limit=15):
             and per_continent.get(cont, 0) < 5
         ):
             picked.append(row)
+            if norm:
+                seen_titles.add(norm)
             per_country[c] = per_country.get(c, 0) + 1
             per_source[s] = per_source.get(s, 0) + 1
             per_continent[cont] = per_continent.get(cont, 0) + 1
@@ -390,6 +515,11 @@ def get_top_headlines(limit=15):
     for row in deferred:
         if len(picked) >= limit:
             break
+        norm = normalize_title(row.get("title") or "")
+        if norm and norm in seen_titles:
+            continue
+        if norm:
+            seen_titles.add(norm)
         picked.append(row)
     return picked
 

@@ -10,6 +10,7 @@ crawler.crawl_feed, and once over existing rows at startup (db).
 """
 import html
 import re
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 _TAG_RE = re.compile(r"<[^>]+>")
 _WS_RE = re.compile(r"\s+")
@@ -65,3 +66,49 @@ def clean_summary(text, title="", limit=SUMMARY_LIMIT):
     if title and text.lower() == title.strip().lower():
         return ""
     return text
+
+
+# --- Dedupe keys (SMA-695) ---------------------------------------------------
+
+_NON_WORD_RE = re.compile(r"[^\w]+", re.UNICODE)
+
+
+def normalize_title(title):
+    """Case/punctuation-insensitive title key for duplicate detection:
+    re-posted live blogs and roundups resurface with new URLs and light
+    edits to casing/punctuation, which UNIQUE(url, country) can't catch."""
+    return _NON_WORD_RE.sub(" ", (title or "").lower()).strip()
+
+
+def normalize_url(url):
+    """Drop utm_* tracking params and the fragment so the same story
+    re-posted with different tracking strings hits UNIQUE(url, country).
+    Other query params are kept — some feeds use ?id= as story identity."""
+    try:
+        parts = urlsplit(url)
+        kept = [
+            (k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True)
+            if not k.lower().startswith("utm_")
+        ]
+        return urlunsplit((parts.scheme, parts.netloc, parts.path,
+                           urlencode(kept), ""))
+    except Exception:
+        return url
+
+
+# Scripts whose titles read as unexpected languages on the world list
+# (Arabic, Hebrew, Greek, Cyrillic, Devanagari, Thai, CJK, Hangul, ...).
+_NON_LATIN_RE = re.compile(
+    "[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF"
+    "\uFB50-\uFDFF\uFE70-\uFEFF\u0370-\u03FF\u0400-\u04FF"
+    "\u0900-\u097F\u0E00-\u0E7F\u3040-\u30FF\u4E00-\u9FFF"
+    "\uAC00-\uD7AF]"
+)
+
+
+def is_non_latin(title):
+    """True when the title uses a non-Latin script. The world list prefers
+    Latin-script titles (SMA-695) so the homepage and hook teaser don't
+    open in a script most visitors can't read; Latin-script languages
+    (French, Spanish, German, ...) are unaffected."""
+    return bool(_NON_LATIN_RE.search(title or ""))
