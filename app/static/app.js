@@ -301,9 +301,115 @@
       .replace(/^-+|-+$/g, "");
   }
 
-  function setPath(path) {
-    try { window.history.replaceState(null, "", path); } catch (e) { /* sandboxed — ignore */ }
+  // SMA-688: real history entries (pushState) carrying a view-state
+  // payload, so the back button steps through in-app views instead of
+  // leaving the site (previously replaceState — mobile back exited
+  // entirely). Region selection sets /region/<slug> (was reset to "/"),
+  // matching the shareable region pages. Whether setPath pushes or
+  // replaces is decided by view identity (navKey), not the path alone —
+  // continent views share "/" with the world view, so a path-only rule
+  // would replace the landing entry and back would still exit. During
+  // boot routing (navBooted false) the select*() calls adopt the landing
+  // entry via replaceState; after boot, a view change pushes. While a
+  // popstate restore runs (restoringPop), setPath is a no-op.
+  var restoringPop = false;
+  var navBooted = false;
+  var navKey = null; // view key of the current history entry
+  function viewKey(viewState) {
+    if (!viewState || viewState.view === "world") return "world";
+    if (viewState.view === "continent") return "continent:" + viewState.continent;
+    if (viewState.view === "region") return "region:" + viewState.region;
+    if (viewState.view === "country") return "country:" + viewState.country;
+    return "world";
   }
+  function setPath(path, viewState) {
+    try {
+      if (restoringPop) return;
+      var k = viewKey(viewState);
+      if (!navBooted || k === navKey) {
+        window.history.replaceState(viewState || null, "", path);
+      } else {
+        window.history.pushState(viewState || null, "", path);
+      }
+      navKey = k;
+    } catch (e) { /* sandboxed — ignore */ }
+  }
+
+  function countryAdminBySlug(slug) {
+    var found = null;
+    continents.forEach(function (c) {
+      c.regions.forEach(function (r) {
+        r.countries.forEach(function (ct) {
+          if (countrySlug(ct.name) === slug) found = ct.name;
+        });
+      });
+    });
+    return found;
+  }
+
+  function regionPlaceBySlug(slug) {
+    var found = null;
+    continents.forEach(function (c) {
+      c.regions.forEach(function (r) {
+        if (r.slug === slug) found = [c.slug, r.slug];
+      });
+    });
+    return found;
+  }
+
+  function routeFromPathname() {
+    var p = window.location.pathname || "/";
+    var m = /^\/country\/([a-z0-9-]+)\/?$/.exec(p);
+    if (m) {
+      var admin = countryAdminBySlug(m[1]);
+      if (admin && findCountry(admin)) { selectCountry(admin, true); return; }
+    }
+    var rm = /^\/region\/([a-z0-9-]+)\/?$/.exec(p);
+    if (rm) {
+      var place = regionPlaceBySlug(rm[1]);
+      if (place && findRegion(place[0], place[1])) { selectRegion(place[0], place[1], true); return; }
+    }
+    goWorld();
+  }
+
+  window.addEventListener("popstate", function (e) {
+    if (!continents.length) return; // boot still routing from the pathname
+    hideHook();
+    restoringPop = true;
+    try {
+      var st = e.state || {};
+      if (st.view === "country" && st.country && findCountry(st.country)) {
+        selectCountry(st.country, true);
+      } else if (st.view === "region" && findRegion(st.continent, st.region)) {
+        selectRegion(st.continent, st.region, true);
+      } else if (st.view === "continent" && findContinent(st.continent)) {
+        selectContinent(st.continent, true);
+      } else if (st.view === "world") {
+        goWorld();
+      } else {
+        routeFromPathname();
+      }
+    } finally {
+      restoringPop = false;
+      // Keep navKey describing the entry we landed on, so the next
+      // setPath pushes/replaces correctly even for stateless entries.
+      if (st.view) {
+        navKey = viewKey(st);
+      } else {
+        var p = window.location.pathname || "/";
+        var cm = /^\/country\/([a-z0-9-]+)\/?$/.exec(p);
+        var rm2 = /^\/region\/([a-z0-9-]+)\/?$/.exec(p);
+        if (cm) {
+          var adm = countryAdminBySlug(cm[1]);
+          navKey = adm ? "country:" + adm : "world";
+        } else if (rm2) {
+          navKey = "region:" + rm2[1];
+        } else {
+          navKey = "world";
+        }
+      }
+    }
+  });
 
   // Story-panel share button (SMA-445): visible only on a country view, shares
   // the canonical /country/<slug> URL — Web Share API on mobile, clipboard
@@ -807,7 +913,7 @@
     active = { continent: null, region: null, country: null };
     markActive();
     trackEvent("select_world");
-    setPath("/");
+    setPath("/", { view: "world" });
     svg.transition().duration(450).call(mapZoom.transform, d3.zoomIdentity);
     loadWorldHeadlines();
   }
@@ -819,7 +925,7 @@
     active = { continent: slug, region: null, country: null };
     markActive();
     trackEvent("select_continent", { continent: slug });
-    setPath("/");
+    setPath("/", { view: "continent", continent: slug });
     setShareCountry(null, null);
     if (zoom) zoomTo(c.lon, c.lat, Z_REGION + 0.3);
     panelTitle.textContent = c.name;
@@ -844,7 +950,7 @@
     active = { continent: contSlug, region: slug, country: null };
     markActive();
     trackEvent("select_region", { region: slug });
-    setPath("/");
+    setPath("/region/" + slug, { view: "region", continent: contSlug, region: slug });
     setShareCountry(null, null);
     if (zoom && r.lat != null) zoomTo(r.lon, r.lat, Z_COUNTRY + 0.3);
     panelTitle.textContent = r.name;
@@ -870,7 +976,7 @@
     active = { continent: f.continent.slug, region: f.region.slug, country: admin };
     markActive();
     trackEvent("select_country", { country: admin });
-    setPath("/country/" + countrySlug(admin));
+    setPath("/country/" + countrySlug(admin), { view: "country", country: admin });
     setShareCountry(f.country.label, admin);
     if (zoom && f.country.lat != null) zoomTo(f.country.lon, f.country.lat, Math.max(d3.zoomTransform(svg.node()).k, 5));
     var ct = f.country;
@@ -1209,12 +1315,16 @@
     }
     if (initialCountry && findCountry(initialCountry)) selectCountry(initialCountry, true);
     else if (initialRegion && findRegion(initialRegion[0], initialRegion[1])) {
+      // SMA-688: selectRegion() now sets /region/<slug> itself (adopting
+      // this deep-link entry via replaceState), so no restore call needed.
       selectRegion(initialRegion[0], initialRegion[1], true);
-      // selectRegion() resets the path to "/"; restore the deep-link URL so
-      // the region page stays shareable and canonical in the address bar.
-      setPath("/region/" + initialRegion[1]);
     }
     else startWorldHeadlinesOnce();
+    // SMA-688: boot routing adopted the landing history entry (navKey set
+    // by the boot select, or the world view); from here on, view changes
+    // push new entries so Back steps through views.
+    navBooted = true;
+    if (navKey === null) navKey = "world";
     // SMA-600: a hook Explore click that arrived before the map/hierarchy
     // were ready was queued instead of dropped — run it now.
     if (pendingHookExplore) exploreFromHook();
