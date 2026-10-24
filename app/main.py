@@ -368,8 +368,23 @@ def sitemap():
     st = db.get_status()
     lastmod = st.get("last_fetched") or datetime.now(timezone.utc).isoformat()
     base = "https://globalnewsmap.net"
-    country_paths = ["/country/" + slug for slug in sorted(_SLUG_TO_COUNTRY)]
-    region_paths = ["/region/" + slug for slug in sorted(_SLUG_TO_REGION)]
+    # SMA-692: only countries with fresh stories belong in the sitemap —
+    # a country whose feeds died is delisted (and its page is noindex)
+    # rather than advertising an empty/stale page to crawlers.
+    counts = db.get_country_counts()
+    country_paths = [
+        "/country/" + slug
+        for slug in sorted(_SLUG_TO_COUNTRY)
+        if counts.get(_SLUG_TO_COUNTRY[slug]["name"], 0) > 0
+    ]
+    live_regions = set()
+    for _c, region, country in config.iter_countries():
+        if counts.get(country["name"], 0) > 0:
+            live_regions.add(region["slug"])
+    region_paths = [
+        "/region/" + slug for slug in sorted(_SLUG_TO_REGION)
+        if slug in live_regions
+    ]
     urls = "".join(
         f'  <url><loc>{base}{path}</loc><lastmod>{lastmod}</lastmod></url>\n'
         for path in ["/", "/top"] + country_paths + region_paths
@@ -567,7 +582,7 @@ def country_page(slug: str):
     )
     items = db.get_headlines("country", admin, 15)
     cards = "\n".join(_story_card(it) for it in items) or (
-        f"<p>No headlines yet for {html.escape(label)} — the latest crawl is still running.</p>"
+        f"<p>No fresh headlines for {html.escape(label)} right now — its local feeds have not published recently.</p>"
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
@@ -581,6 +596,12 @@ def country_page(slug: str):
     # (the client's breadcrumb is buttons, invisible to crawlers) so organic
     # landings have an onward path and crawlers can follow country pages.
     nav = _country_nav(slug)
+    # SMA-692: a country with no fresh stories is delisted — noindex the
+    # page (it is also out of the sitemap) instead of presenting stale or
+    # empty content as a live news page.
+    head_extra = _newsarticle_jsonld(items)
+    if not items:
+        head_extra += '\n<meta name="robots" content="noindex">'
     return HTMLResponse(
         _app_page(
             title=title,
@@ -588,7 +609,7 @@ def country_page(slug: str):
             canonical_path="/country/" + slug,
             initial_country=admin,
             body_prefix=nav + noscript,
-            head_extra=_newsarticle_jsonld(items),
+            head_extra=head_extra,
         )
     )
 
@@ -661,7 +682,7 @@ def region_page(slug: str):
     )
     items = db.get_headlines("region", slug, 15)
     cards = "\n".join(_story_card(it) for it in items) or (
-        f"<p>No headlines yet for {html.escape(region_name)} — the latest crawl is still running.</p>"
+        f"<p>No fresh headlines for {html.escape(region_name)} right now — local feeds across the region have not published recently.</p>"
     )
     noscript = (
         '<noscript><main class="noscript-country">\n'
@@ -672,6 +693,10 @@ def region_page(slug: str):
         "</main></noscript>"
     )
     nav = _region_nav(cont, region)
+    # SMA-692: same delisting rule as country pages.
+    head_extra = _newsarticle_jsonld(items)
+    if not items:
+        head_extra += '\n<meta name="robots" content="noindex">'
     return HTMLResponse(
         _app_page(
             title=title,
@@ -679,7 +704,7 @@ def region_page(slug: str):
             canonical_path="/region/" + slug,
             initial_region=(cont["slug"], region["slug"]),
             body_prefix=nav + noscript,
-            head_extra=_newsarticle_jsonld(items),
+            head_extra=head_extra,
         )
     )
 
@@ -803,12 +828,21 @@ def get_top_headlines(limit: int = Query(15, ge=1, le=50)):
 @app.get("/api/status")
 def get_status():
     st = db.get_status()
+    health = db.get_feed_health()
     return {
         "continents": st["continents"],
         "total_count": st["total_count"],
         "last_fetched": st["last_fetched"],
         "crawl": "every-6-hours-staggered",
         "server_time": datetime.now(timezone.utc).isoformat(),
+        # SMA-692: per-feed health (last success, item count, newest entry)
+        # so dead or stale feeds are visible instead of silently leaving
+        # countries serving years-old stories.
+        "feed_health": {
+            "total": len(health),
+            "ok": sum(1 for h in health if h.get("last_success")),
+            "feeds": health,
+        },
     }
 
 

@@ -38,6 +38,18 @@ CREATE INDEX IF NOT EXISTS idx_headlines_continent_fetched
     ON headlines(continent, fetched_at DESC);
 """
 
+FEED_HEALTH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS feed_health (
+    url TEXT PRIMARY KEY,
+    name TEXT,
+    last_attempt TEXT,
+    last_success TEXT,
+    last_item_count INTEGER,
+    newest_entry_at TEXT,
+    last_error TEXT
+);
+"""
+
 # Backwards-compatible alias (tests/scripts may import SCHEMA).
 SCHEMA = TABLE_SCHEMA + INDEXES
 
@@ -127,6 +139,7 @@ def init_db():
             conn.executescript(TABLE_SCHEMA)
             _migrate(conn)
             conn.executescript(INDEXES)
+            conn.executescript(FEED_HEALTH_SCHEMA)
             conn.commit()
         finally:
             conn.close()
@@ -265,18 +278,52 @@ def prune_country(country, keep=MAX_PER_COUNTRY):
             conn.close()
 
 
+# --- Freshness (SMA-692) -----------------------------------------------------
+# Nothing enforces staleness today except prune_country's 100-row cap, so a
+# dead feed's last items stay on its country page forever (Bangladesh was
+# serving July 2022 stories in Oct 2026; Belgium's newest was Jun 2025).
+# A story is servable when its effective date COALESCE(published_at,
+# fetched_at) is within FRESH_HOURS — or, per-country fallback, within
+# FALLBACK_DAYS when the country has nothing fresher (keeps slow-publishing
+# countries on the map without letting genuinely dead feeds linger).
+FRESH_HOURS = 72
+FALLBACK_DAYS = 7
+
+
+def _fresh_cutoffs():
+    now = datetime.now(timezone.utc)
+    return (
+        (now - timedelta(hours=FRESH_HOURS)).isoformat(),
+        (now - timedelta(days=FALLBACK_DAYS)).isoformat(),
+    )
+
+
+_FRESH_PREDICATE = (
+    "(COALESCE(published_at, fetched_at) >= ?"
+    " OR (COALESCE(published_at, fetched_at) >= ?"
+    "     AND NOT EXISTS (SELECT 1 FROM headlines f2"
+    "                     WHERE f2.country = headlines.country"
+    "                     AND COALESCE(f2.published_at, f2.fetched_at) >= ?)))"
+)
+
+
 def get_headlines(level, key, limit=10):
-    """level: 'continent' | 'region' | 'country'."""
+    """level: 'continent' | 'region' | 'country'. Fresh stories only
+    (SMA-692 — see _FRESH_PREDICATE)."""
     if level not in ("continent", "region", "country"):
         raise ValueError("bad level")
+    cut_fresh, cut_fallback = _fresh_cutoffs()
     with _lock:
         conn = _connect()
         try:
             cur = conn.execute(
                 "SELECT continent, region, country, title, summary, url, source,"
                 " published_at, fetched_at FROM headlines WHERE {} = ?"
-                " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?".format(level),
-                (key, limit),
+                " AND {}"
+                " ORDER BY COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?".format(
+                    level, _FRESH_PREDICATE
+                ),
+                (key, cut_fresh, cut_fallback, cut_fresh, limit),
             )
             return [dict(r) for r in cur.fetchall()]
         finally:
@@ -302,17 +349,22 @@ def get_top_headlines(limit=15):
     item — previously the COALESCE fell back to fetched_at, so a just-fetched
     undated story outranked genuinely newer dated stories and took top
     slots (live check 2026-10-22: 4 of the top 15 had published_at null).
+
+    SMA-692: the world list is strictly fresh — no per-country fallback
+    here; a week-old story never belongs in "Top stories right now".
     """
     pool_limit = max(limit * 20, 100)
+    cut_fresh, _ = _fresh_cutoffs()
     with _lock:
         conn = _connect()
         try:
             cur = conn.execute(
                 "SELECT continent, region, country, title, summary, url, source,"
                 " published_at, fetched_at FROM headlines"
+                " WHERE COALESCE(published_at, fetched_at) >= ?"
                 " ORDER BY (published_at IS NULL) ASC,"
                 " COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?",
-                (pool_limit,),
+                (cut_fresh, pool_limit),
             )
             pool = [dict(r) for r in cur.fetchall()]
         finally:
@@ -369,14 +421,65 @@ def get_status():
 
 
 def get_country_counts():
-    """ADMIN name -> story count (only countries with stories)."""
+    """ADMIN name -> fresh story count (SMA-692: only stories inside the
+    freshness window count, so countries whose feeds died drop off the map
+    — markers render only when stories > 0 — and out of the sitemap)."""
+    cut_fresh, cut_fallback = _fresh_cutoffs()
     with _lock:
         conn = _connect()
         try:
             cur = conn.execute(
                 "SELECT country, COUNT(*) AS count FROM headlines"
-                " WHERE country != '' GROUP BY country"
+                " WHERE country != '' AND " + _FRESH_PREDICATE +
+                " GROUP BY country",
+                (cut_fresh, cut_fallback, cut_fresh),
             )
             return {r["country"]: r["count"] for r in cur.fetchall()}
+        finally:
+            conn.close()
+
+
+# --- Feed health (SMA-692) ---------------------------------------------------
+
+def record_feed_health(url, name, ok, item_count, newest_entry_at, error):
+    """Upsert one feed's health row after a crawl attempt."""
+    now = utcnow_iso()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """INSERT INTO feed_health
+                       (url, name, last_attempt, last_success, last_item_count,
+                        newest_entry_at, last_error)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(url) DO UPDATE SET
+                       name = excluded.name,
+                       last_attempt = excluded.last_attempt,
+                       last_success = CASE WHEN excluded.last_success IS NOT NULL
+                                           THEN excluded.last_success
+                                           ELSE feed_health.last_success END,
+                       last_item_count = excluded.last_item_count,
+                       newest_entry_at = excluded.newest_entry_at,
+                       last_error = excluded.last_error""",
+                (url, name, now, now if ok else None, item_count,
+                 newest_entry_at, error),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_feed_health():
+    """All recorded feed-health rows, worst first (never-succeeded, then
+    oldest newest-entry), so /api/status surfaces problems at the top."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "SELECT url, name, last_attempt, last_success, last_item_count,"
+                " newest_entry_at, last_error FROM feed_health"
+                " ORDER BY (last_success IS NULL) DESC, newest_entry_at ASC"
+            )
+            return [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
