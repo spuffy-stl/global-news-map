@@ -287,7 +287,7 @@
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
-      return { "&": "&amp;", "&lt;": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
 
@@ -710,10 +710,12 @@
   // ---------------------------------------------------------------------------
   // Panel
   // ---------------------------------------------------------------------------
-  // SMA-513: per-story share affordance. Each card links to the story's
-  // canonical /country/<slug> deep link (not the publisher URL) so shares
-  // drive traffic back to the map. Native share sheet on mobile, clipboard
-  // fallback on desktop.
+  // SMA-690 (Claude Design "Story card redesign" board): card anatomy is
+  // 1) country label link, 2) source · relative time, 3) headline,
+  // 4) 1–2 line summary, 5) read CTA. The per-card share pill (SMA-513/549)
+  // and the post-click share nudge (SMA-602) are removed — organic shares
+  // stayed at zero while the UI cost vertical space on every card; sharing
+  // remains available at panel level (shareBtn, country views).
   function storyCard(s, level) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
     var favicon = "";
@@ -722,24 +724,20 @@
       favicon = '<img class="favicon" src="https://www.google.com/s2/favicons?domain=' +
         esc(host) + '&sz=32" alt="" loading="lazy" onerror="this.remove()">';
     } catch (e) { /* leave favicon empty on unparseable URL */ }
-    // SMA-549: share affordance sits next to the headline (prominent, top-right
-    // of the card via .share-story float) instead of buried in the meta row.
-    var shareBtn = '<button type="button" class="share-story" data-slug="' + esc(countrySlug(s.country || "")) +
-      '" data-title="' + esc(s.title || "") + '" data-source="' + esc(s.source || "") +
-      '" data-level="' + esc(level || "") +
-      '" title="Share this story" aria-label="Share this story">↗ Share</button>';
+    var countryLink = "";
+    if (level !== "country" && s.country) {
+      countryLink = '<a class="story-country" href="/country/' +
+        esc(countrySlug(s.country)) + '">' + esc(s.country) + "</a>";
+    }
     return (
       '<article class="story' + (isNewStory(s) ? " is-new" : "") + '" data-source="' + esc(s.source || "") + '">' +
-        '<h3>' + shareBtn + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
-        (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
-        '<div class="meta"><span>' + esc(s.source || "") + '</span>' +
+        '<div class="meta">' + countryLink +
+        '<span class="story-source">' + esc(s.source || "") + "</span>" +
         "<span>" + esc(pub) + "</span></div>" +
-        // SMA-566 (content lever): the 2026-10-16 readout said the next lever
-        // is card content, not more click affordance. The summary is now
-        // clamped to 2 lines in CSS (was 4 — long summaries answered the
-        // story on the card, so there was nothing left to click for), and
-        // the tiny "Read →" meta link becomes an explicit full-width CTA
-        // naming the destination source.
+        '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
+        (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
+        // SMA-566 (content lever): explicit full-width CTA naming the
+        // destination source.
         '<div class="story-cta"><a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read the full story' +
         (s.source ? " at " + esc(s.source) : "") + " →</a></div>" +
       "</article>"
@@ -918,7 +916,6 @@
       level: panelLevel,
       source: art ? art.getAttribute("data-source") || "" : "",
     });
-    if (art) maybeShowShareNudge(art);
   });
 
   // SMA-566: whole-card click — the card looked static (title in plain ink,
@@ -937,111 +934,7 @@
       source: art.getAttribute("data-source") || "",
       via: "card",
     });
-    maybeShowShareNudge(art);
     window.open(link.href, "_blank", "noopener");
-  });
-
-  // SMA-602: share tracking verified firing on real clicks (live headless
-  // click-through 2026-10-14: share_story + share_country both fired with
-  // method=clipboard and the pre-composed text landed on the clipboard) —
-  // but organic shares were 0 for two straight weeks: nobody seeks the
-  // buttons out. Put the prompt at the moment of highest intent instead:
-  // right after a visitor clicks through to a story. Once per session; the
-  // nudge's Share button re-clicks that card's own .share-story button, so
-  // the exact same share flow (and share_story event) runs.
-  var shareNudge = document.getElementById("shareNudge");
-  var shareNudgeText = document.getElementById("shareNudgeText");
-  var shareNudgeBtn = document.getElementById("shareNudgeBtn");
-  var shareNudgeDismiss = document.getElementById("shareNudgeDismiss");
-  var nudgeShareBtn = null;
-  var nudgeTimer = null;
-  function nudgeSeen() {
-    try { return sessionStorage.getItem("gnmShareNudge") === "1"; } catch (e) { return false; }
-  }
-  function markNudgeSeen() {
-    try { sessionStorage.setItem("gnmShareNudge", "1"); } catch (e) { /* storage unavailable */ }
-  }
-  function hideShareNudge() {
-    if (nudgeTimer) { clearTimeout(nudgeTimer); nudgeTimer = null; }
-    if (shareNudge) shareNudge.classList.add("hidden");
-  }
-  function maybeShowShareNudge(art) {
-    if (!shareNudge || !art || nudgeSeen()) return;
-    var btn = art.querySelector(".share-story");
-    if (!btn || !btn.getAttribute("data-slug")) return;
-    markNudgeSeen();
-    nudgeShareBtn = btn;
-    var title = btn.getAttribute("data-title") || "this story";
-    if (title.length > 60) title = title.slice(0, 57) + "\u2026";
-    if (shareNudgeText) shareNudgeText.textContent = "Worth passing on? Share \u201C" + title + "\u201D";
-    nudgeTimer = setTimeout(function () {
-      nudgeTimer = null;
-      shareNudge.classList.remove("hidden");
-      trackEvent("share_nudge_shown", { level: panelLevel, country: btn.getAttribute("data-slug") || "" });
-    }, 700);
-  }
-  if (shareNudgeBtn) shareNudgeBtn.addEventListener("click", function () {
-    trackEvent("share_nudge_click", {});
-    hideShareNudge();
-    if (nudgeShareBtn && document.contains(nudgeShareBtn)) nudgeShareBtn.click();
-  });
-  if (shareNudgeDismiss) shareNudgeDismiss.addEventListener("click", function () {
-    trackEvent("share_nudge_dismiss", {});
-    hideShareNudge();
-  });
-
-  // Per-story share affordance (SMA-513): delegated; story cards are
-  // re-rendered. Fires share_story {level, country, method} in GA4.
-  storiesEl.addEventListener("click", function (e) {
-    var btn = e.target && e.target.closest ? e.target.closest(".share-story") : null;
-    if (!btn || !storiesEl.contains(btn)) return;
-    var slug = btn.getAttribute("data-slug");
-    if (!slug) return;
-    var title = btn.getAttribute("data-title") || "Global News Map";
-    var source = btn.getAttribute("data-source") || "";
-    var url = CANONICAL_BASE + "/country/" + slug;
-    // SMA-549: pre-composed share text — headline + source + map deep link.
-    // The clipboard path copies the whole text so a paste into chat is
-    // self-contained, not a bare URL.
-    var countryLabel = (function () {
-      for (var i = 0; i < continents.length; i++) {
-        var c = continents[i];
-        for (var j = 0; j < c.regions.length; j++) {
-          var r = c.regions[j];
-          for (var k = 0; k < r.countries.length; k++) {
-            if (countrySlug(r.countries[k].name) === slug) return r.countries[k].label;
-          }
-        }
-      }
-      return null;
-    })();
-    var text = "\u201C" + title + "\u201D" + (source ? " — " + source : "") +
-      "\nMore " + (countryLabel || "world") + " news on the Global News Map:\n" + url;
-    var done = function (method) {
-      trackEvent("share_story", {
-        level: btn.getAttribute("data-level") || "unknown",
-        country: slug,
-        method: method,
-      });
-    };
-    var confirmCopy = function () {
-      var t = btn.textContent;
-      btn.textContent = "✓ Copied";
-      setTimeout(function () { btn.textContent = t; }, 1500);
-    };
-    if (navigator.share) {
-      navigator.share({ title: title, text: text, url: url }).then(function () {
-        done("webshare");
-      }, function () { /* dismissed — not a share */ });
-      return;
-    }
-    copyText(text).then(function () {
-      confirmCopy();
-      done("clipboard");
-    }, function () {
-      window.prompt("Copy this share text:", text);
-      done("prompt");
-    });
   });
 
   var worldFeatures = [];
