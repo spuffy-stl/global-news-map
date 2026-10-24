@@ -7,7 +7,6 @@
 - Per-feed error handling: one dead feed can never kill a run.
 """
 import logging
-import re
 import time
 from datetime import datetime, timezone
 
@@ -15,13 +14,12 @@ import feedparser
 import requests
 
 from . import config, db
+from .textclean import clean_summary, clean_title
 
 log = logging.getLogger("global-news-map.crawler")
 
 _session = requests.Session()
 _session.headers.update({"User-Agent": config.USER_AGENT})
-
-_TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _fetch(url):
@@ -52,14 +50,6 @@ def _published_iso(entry):
     return None
 
 
-def _clean(text, limit=2000):
-    if not text:
-        return ""
-    text = _TAG_RE.sub(" ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text[:limit]
-
-
 def crawl_feed(feed):
     """Fetch and parse one feed. Returns a list of headline dicts. Never raises."""
     try:
@@ -77,14 +67,18 @@ def crawl_feed(feed):
         return []
     items = []
     for entry in parsed.entries[:25]:
-        title = (entry.get("title") or "").strip()
+        # SMA-694: clean titles too — previously only summaries were
+        # cleaned, which is how raw <a href> HTML reached the site.
+        title = clean_title(entry.get("title") or "")
         link = (entry.get("link") or "").strip()
         if not title or not link:
             continue
-        summary = _clean(entry.get("summary") or entry.get("description") or "")
+        summary = clean_summary(
+            entry.get("summary") or entry.get("description") or "", title=title
+        )
         items.append(
             {
-                "title": title[:500],
+                "title": title,
                 "summary": summary,
                 "url": link,
                 "published_at": _published_iso(entry),

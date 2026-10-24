@@ -10,6 +10,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 
 from . import config
+from .textclean import clean_summary, clean_title
 
 _lock = threading.Lock()
 DB_PATH = os.path.join(config.DATA_DIR, "news.db")
@@ -130,6 +131,7 @@ def init_db():
         finally:
             conn.close()
     clamp_future_dates()
+    clean_stored_text()
 
 
 def utcnow_iso():
@@ -175,6 +177,31 @@ def clamp_future_dates():
             fixed = cur.rowcount
             conn.commit()
             return fixed
+        finally:
+            conn.close()
+
+
+def clean_stored_text():
+    """SMA-694: run the crawl-time text cleaning over rows stored before
+    it existed (raw-HTML titles, entity-laden and boilerplate summaries).
+    Runs at startup; idempotent, so repeat runs are no-ops. Returns the
+    number of rows rewritten."""
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute("SELECT id, title, summary FROM headlines").fetchall()
+            changed = 0
+            for row in rows:
+                title = clean_title(row["title"] or "")
+                summary = clean_summary(row["summary"] or "", title=title)
+                if title != row["title"] or summary != (row["summary"] or ""):
+                    conn.execute(
+                        "UPDATE headlines SET title = ?, summary = ? WHERE id = ?",
+                        (title, summary, row["id"]),
+                    )
+                    changed += 1
+            conn.commit()
+            return changed
         finally:
             conn.close()
 
