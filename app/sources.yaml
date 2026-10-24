@@ -57,6 +57,8 @@ continents:
             sources:
               - name: El Faro English
                 url: https://elfaro.net/en/feed
+              - name: Diario Co Latino
+                url: https://www.diariocolatino.com/feed/
           - name: Nicaragua
             sources:
               - name: Confidencial
@@ -467,6 +469,8 @@ continents:
             sources:
               - name: Sierra Leone Telegraph
                 url: https://www.thesierraleonetelegraph.com/feed/
+              - name: Awoko
+                url: https://awokonewspapersl.com/feed/
           - name: Liberia
             sources:
               - name: Liberian Observer
@@ -716,6 +720,8 @@ continents:
                 url: https://www.tehrantimes.com/rss
               - name: Mehr News
                 url: https://en.mehrnews.com/rss
+              - name: IRNA English
+                url: https://en.irna.ir/rss
           - name: Yemen
             sources:
               - name: 26 September
