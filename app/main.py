@@ -7,7 +7,7 @@ import re
 import threading
 import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -945,9 +945,25 @@ def get_status():
         # SMA-692: per-feed health (last success, item count, newest entry)
         # so dead or stale feeds are visible instead of silently leaving
         # countries serving years-old stories.
+        # SMA-713: `ok` means the LAST attempt succeeded (the old
+        # ever-succeeded count overstated health), and `stale` counts
+        # feeds fetching fine but frozen (newest entry older than the
+        # 7-day fallback window; undated feeds are not counted stale).
         "feed_health": {
             "total": len(health),
-            "ok": sum(1 for h in health if h.get("last_success")),
+            "ok": sum(
+                1 for h in health
+                if h.get("last_error") is None
+                and h.get("last_success")
+                and h.get("last_success") == h.get("last_attempt")
+            ),
+            "stale": sum(
+                1 for h in health
+                if h.get("last_error") is None
+                and h.get("newest_entry_at")
+                and h["newest_entry_at"]
+                < (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            ),
             "feeds": health,
         },
     }
