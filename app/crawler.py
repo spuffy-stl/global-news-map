@@ -151,6 +151,15 @@ def crawl_all(continents=None):
             touched.add(sub["country"])
         log.info("feed %-28s subscribers %2d items %d",
                  feed["name"], len(feed["subscribers"]), len(items))
+    # SMA-713: prune health rows for feeds removed from sources.yaml.
+    # Uses the FULL configured URL set — a staggered (continent-filtered)
+    # crawl must not delete rows for feeds it simply didn't visit.
+    try:
+        pruned = db.prune_feed_health({f["url"] for f in config.iter_feeds()})
+        if pruned:
+            log.info("pruned %d stale feed-health rows", pruned)
+    except Exception:
+        log.exception("feed health prune failed")
     for country in touched:
         db.prune_country(country)
     purged = db.purge_unknown_continents({c["slug"] for c in config.CONTINENTS})

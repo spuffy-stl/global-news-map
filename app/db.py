@@ -633,6 +633,28 @@ def record_feed_health(url, name, ok, item_count, newest_entry_at, error):
             conn.close()
 
 
+def prune_feed_health(valid_urls):
+    """SMA-713: drop health rows for feeds no longer in sources.yaml —
+    removed feeds otherwise linger in /api/status forever, inflating the
+    total and masking the real health ratio. Returns rows deleted."""
+    urls = list(valid_urls)
+    with _lock:
+        conn = _connect()
+        try:
+            if urls:
+                placeholders = ",".join("?" for _ in urls)
+                cur = conn.execute(
+                    f"DELETE FROM feed_health WHERE url NOT IN ({placeholders})",
+                    urls,
+                )
+            else:
+                cur = conn.execute("DELETE FROM feed_health")
+            conn.commit()
+            return cur.rowcount
+        finally:
+            conn.close()
+
+
 def get_feed_health():
     """All recorded feed-health rows, worst first (never-succeeded, then
     oldest newest-entry), so /api/status surfaces problems at the top."""
