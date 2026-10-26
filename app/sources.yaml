@@ -55,8 +55,7 @@ continents:
                 url: https://criterio.hn/feed/
           - name: El Salvador
             sources:
-              - name: El Faro English
-                url: https://elfaro.net/en/feed
+              # El Faro English removed 2026-10-26: feed frozen, newest entry 2025-05-05.
               - name: Diario Co Latino
                 url: https://www.diariocolatino.com/feed/
           - name: Nicaragua
@@ -282,8 +281,7 @@ continents:
             sources:
               - name: Notes from Poland
                 url: https://notesfrompoland.com/feed/
-              - name: Krakow Post
-                url: https://www.krakowpost.com/feed/
+              # Krakow Post removed 2026-10-26: feed dead, newest entry 2020-09-30.
           - name: Hungary
             sources:
               - name: Daily News Hungary
@@ -372,6 +370,8 @@ continents:
                 url: http://www.hurriyetdailynews.com/rss/home
               - name: Bianet English
                 url: https://bianet.org/rss/english
+              - name: Anadolu Agency English
+                url: https://www.aa.com.tr/en/rss/default?cat=guncel
           - name: Georgia
             sources:
               - name: Civil Georgia
