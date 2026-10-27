@@ -20,10 +20,10 @@ continents:
           - name: United States of America
             label: United States
             sources:
+              - name: New York Times
+                url: https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml
               - name: NPR
                 url: https://feeds.npr.org/1001/rss.xml
-              - name: PBS NewsHour
-                url: https://www.pbs.org/newshour/feeds/rss/headlines
               - name: ABC News
                 url: https://abcnews.go.com/abcnews/topstories
           - name: Canada
@@ -41,8 +41,8 @@ continents:
         countries:
           - name: Mexico
             sources:
-              - name: Excelsior
-                url: https://www.excelsior.com.mx/rss
+              - name: El Universal
+                url: https://www.eluniversal.com.mx/arc/outboundfeeds/rss/?outputType=xml
               - name: El Financiero
                 url: https://www.elfinanciero.com.mx/rss
           - name: Guatemala
@@ -51,6 +51,10 @@ continents:
                 url: https://www.prensalibre.com/feed/
           - name: Honduras
             sources:
+              - name: La Prensa
+                url: https://www.laprensa.hn/rss/portada.xml
+              - name: El Heraldo
+                url: https://www.elheraldo.hn/rss/portada.xml
               - name: Criterio.hn
                 url: https://criterio.hn/feed/
           - name: El Salvador
@@ -64,6 +68,8 @@ continents:
                 url: https://confidencial.digital/feed/
           - name: Costa Rica
             sources:
+              - name: La Nación
+                url: https://www.nacion.com/arc/outboundfeeds/rss/?outputType=xml
               - name: El Financiero
                 url: https://www.elfinancierocr.com/rss
           - name: Panama
@@ -75,16 +81,18 @@ continents:
         countries:
           - name: Cuba
             sources:
+              - name: 14ymedio
+                url: https://www.14ymedio.com/rss/
               - name: Havana Times
                 url: https://havanatimes.org/feed/
           - name: Haiti
             sources:
               - name: Le Nouvelliste
                 url: https://lenouvelliste.com/rss
-              - name: Haiti Gazette
-                url: https://www.haitigazette.com/feed/
           - name: Dominican Republic
             sources:
+              - name: Diario Libre
+                url: https://www.diariolibre.com/rss/portada.xml
               - name: Dominican Today
                 url: https://dominicantoday.com/feed/
           - name: Jamaica
@@ -107,12 +115,12 @@ continents:
             sources:
               - name: Folha de S.Paulo
                 url: https://feeds.folha.uol.com.br/emcimadahora/rss091.xml
-              - name: Rio Times
-                url: https://riotimesonline.com/feed/
+              - name: G1
+                url: https://g1.globo.com/rss/g1/
           - name: Argentina
             sources:
-              - name: Buenos Aires Times
-                url: https://www.batimes.com.ar/feed/
+              - name: Clarín
+                url: https://www.clarin.com/rss/lo-ultimo/
               - name: La Nación
                 url: https://www.lanacion.com.ar/arc/outboundfeeds/rss/?outputType=xml
           - name: Chile
@@ -123,34 +131,30 @@ continents:
                 url: https://feeds.feedburner.com/radiobiobio/NNeJ
           - name: Peru
             sources:
-              - name: Peru Reports
-                url: https://perureports.com/feed
+              - name: El Comercio
+                url: https://elcomercio.pe/arcio/rss/
               - name: RPP
                 url: https://rpp.pe/rss
           - name: Colombia
             sources:
-              - name: Colombia Reports
-                url: https://colombiareports.com/feed/
               - name: El Tiempo
                 url: https://www.eltiempo.com/rss/colombia.xml
               - name: La Silla Vacía
                 url: https://www.lasillavacia.com/feed/
           - name: Venezuela
             sources:
-              - name: Caracas Chronicles
-                url: https://www.caracaschronicles.com/feed/
               - name: El Nacional
                 url: https://www.elnacional.com/feed/
-              - name: Efecto Cocuyo
-                url: https://efectococuyo.com/feed/
           - name: Ecuador
             sources:
+              - name: El Universo
+                url: https://www.eluniverso.com/arc/outboundfeeds/rss/?outputType=xml
               - name: El Comercio
                 url: https://www.elcomercio.com/feed/
           - name: Bolivia
             sources:
-              - name: La Razón
-                url: https://larazon.bo/feed/
+              - name: El Deber
+                url: https://eldeber.com.bo/feed
               - name: Opinión
                 url: https://www.opinion.com.bo/rss/
           - name: Paraguay
