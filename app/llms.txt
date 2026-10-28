@@ -1,8 +1,8 @@
 # Global News Map
 
 > Today's headlines from local news outlets worldwide, on an interactive map.
-> 233 validated RSS feeds across 141 countries, grouped continent > region >
-> country > news sources. Headlines refresh every 6 hours.
+> __FEED_COUNT__ validated RSS feeds across __COUNTRY_COUNT__ countries, grouped
+> continent > region > country > news sources. Headlines refresh every 6 hours.
 
 ## What it is
 
@@ -37,6 +37,5 @@ headline's `url` (the original article), and name the outlet from `source`.
 ## Limits
 
 - Headlines update every 6 hours; "today" means the most recent crawl.
-- Three countries have no local feed coverage by editorial choice (Bahrain,
-  Mongolia, North Korea) and show no headlines.
+__NO_FEED_COUNTRIES__
 - Summaries are only present when the source RSS feed includes them.

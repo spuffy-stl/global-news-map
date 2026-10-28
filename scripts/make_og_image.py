@@ -5,11 +5,20 @@ site, wireframe globe + wordmark + tagline. Run: python3 scripts/make_og_image.p
 """
 import math
 import os
+import yaml
 from PIL import Image, ImageDraw, ImageFont
 
 W, H = 1200, 630
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                    "..", "app", "static", "og-image.png")
+
+# SMA-753: counts come from app/sources.yaml (unique feed URLs, countries),
+# matching config.feed_count()/country_count().
+with open(os.path.join(os.path.dirname(OUT), "..", "sources.yaml"), encoding="utf-8") as _f:
+    _COUNTRIES = [c for cont in yaml.safe_load(_f)["continents"]
+                  for r in cont.get("regions", []) for c in r.get("countries", [])]
+FEED_COUNT = len({s["url"] for c in _COUNTRIES for s in c.get("sources") or []})
+COUNTRY_COUNT = len(_COUNTRIES)
 
 BG_TOP = (11, 18, 32)
 BG_BOT = (16, 31, 58)
@@ -66,8 +75,8 @@ def main():
         size -= 4
     f_title = ImageFont.truetype(fb, size)
     sub_lines = [
-        "Today\u2019s headlines from 233 local news",
-        "outlets across 141 countries",
+        f"Today\u2019s headlines from {FEED_COUNT} local news",
+        f"outlets across {COUNTRY_COUNT} countries",
         "\u2014 updated daily on the map",
     ]
     sub_size = 37

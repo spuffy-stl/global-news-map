@@ -4,22 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Global News Map — Free world news map of today's local headlines</title>
-<meta name="description" content="Explore today's headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">
+<meta name="description" content="Explore today's headlines from __FEED_COUNT__ local news outlets across __COUNTRY_COUNT__ countries on a free interactive world news map. Updated every 6 hours.">
 <link rel="canonical" href="https://globalnewsmap.net/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Global News Map">
 <meta property="og:title" content="Global News Map — Free world news map of today's local headlines">
-<meta property="og:description" content="Explore today's headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">
+<meta property="og:description" content="Explore today's headlines from __FEED_COUNT__ local news outlets across __COUNTRY_COUNT__ countries on a free interactive world news map. Updated every 6 hours.">
 <meta property="og:url" content="https://globalnewsmap.net/">
 <!-- SMA-549: preview cards for shared links -->
 <meta property="og:image" content="https://globalnewsmap.net/static/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Global News Map — today's headlines from 233 local news outlets across 141 countries">
+<meta property="og:image:alt" content="Global News Map — today's headlines from __FEED_COUNT__ local news outlets across __COUNTRY_COUNT__ countries">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://globalnewsmap.net/static/og-image.png">
 <meta name="twitter:title" content="Global News Map — Free world news map of today's local headlines">
-<meta name="twitter:description" content="Explore today's headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">
+<meta name="twitter:description" content="Explore today's headlines from __FEED_COUNT__ local news outlets across __COUNTRY_COUNT__ countries on a free interactive world news map. Updated every 6 hours.">
 <link rel="stylesheet" href="/static/style.css">
 <!--GA4-->
 </head>
@@ -27,7 +27,7 @@
 <header class="topbar">
   <div class="brand"><span class="globe" aria-hidden="true">🌐</span><h1>Global News Map</h1></div>
   <div class="search-wrap">
-    <input id="countrySearch" class="attract" type="search" placeholder="🔍 Search 141 countries… ( / )" aria-label="Search countries and regions"
+    <input id="countrySearch" class="attract" type="search" placeholder="🔍 Search __COUNTRY_COUNT__ countries… ( / )" aria-label="Search countries and regions"
       autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false"
       aria-controls="searchResults" aria-autocomplete="list">
     <ul id="searchResults" class="search-results hidden" role="listbox" aria-label="Matching places"></ul>
@@ -43,7 +43,7 @@
          first interaction for cold visitors. Shown only on the world view for
          first-time visitors (JS unhides it); hidden for everyone else. -->
     <div id="welcomeHook" class="hook-banner hidden" role="region" aria-label="Welcome">
-      <p><strong>See what the world is reading today.</strong> Tap a glowing marker to read headlines from local outlets in 141 countries.</p>
+      <p><strong>See what the world is reading today.</strong> Tap a glowing marker to read headlines from local outlets in __COUNTRY_COUNT__ countries.</p>
       <p id="hookTeaser" class="hook-teaser hidden"></p>
       <div class="hook-actions">
         <button id="hookExplore" class="btn hook-cta" type="button">🌍 Take me to a trending country</button>
