@@ -183,56 +183,58 @@ continents:
                 url: https://www.theguardian.com/uk/rss
           - name: Ireland
             sources:
-              - name: RTÉ News
-                url: https://www.rte.ie/rss/news.xml
+              - name: The Irish Times
+                url: https://www.irishtimes.com/arc/outboundfeeds/feed-irish-news/?outputType=xml
               - name: TheJournal.ie
                 url: https://www.thejournal.ie/feed/
           - name: France
             sources:
               - name: Le Monde
                 url: https://www.lemonde.fr/rss/une.xml
-              - name: Le Monde English
-                url: https://www.lemonde.fr/en/rss/une.xml
+              - name: Le Figaro
+                url: https://www.lefigaro.fr/rss/figaro_actualites.xml
           - name: Germany
             sources:
               - name: Tagesschau
                 url: https://www.tagesschau.de/xml/rss2
-              - name: DER SPIEGEL International
-                url: https://www.spiegel.de/international/index.rss
+              - name: DER SPIEGEL
+                url: https://www.spiegel.de/schlagzeilen/index.rss
           - name: Netherlands
             sources:
-              - name: NL Times
-                url: https://nltimes.nl/rss
-              - name: DutchNews.nl
-                url: https://www.dutchnews.nl/feed/
+              - name: NOS
+                url: https://feeds.nos.nl/nosnieuwsalgemeen
+              - name: NU.nl
+                url: https://www.nu.nl/rss/Algemeen
           - name: Belgium
             sources:
-              - name: The Bulletin
-                url: https://www.thebulletin.be/rss.xml
+              - name: VRT NWS
+                url: https://www.vrt.be/vrtnws/nl.rss.articles.xml
+              - name: RTBF Info
+                url: https://rss.rtbf.be/article/rss/highlight_rtbf_info.xml
           - name: Spain
             sources:
-              - name: El País English
-                url: https://feeds.elpais.com/mrss-s/pages/ep/site/english.elpais.com/portada
+              - name: El País
+                url: https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
               - name: El Mundo
                 url: https://e00-elmundo.uecdn.es/elmundo/rss/portada.xml
           - name: Portugal
             sources:
-              - name: The Portugal News
-                url: https://www.theportugalnews.com/rss
-              - name: Portugal Resident
-                url: https://www.portugalresident.com/feed
+              - name: Público
+                url: https://feeds.feedburner.com/PublicoRSS
+              - name: RTP Notícias
+                url: https://www.rtp.pt/noticias/rss
           - name: Italy
             sources:
-              - name: ANSA English
-                url: https://www.ansa.it/english/news/english_nr_rss.xml
+              - name: Corriere della Sera
+                url: https://www.corriere.it/feed-hp/homepage.xml
               - name: La Repubblica
                 url: https://www.repubblica.it/rss/homepage/rss2.0.xml
           - name: Switzerland
             sources:
               - name: NZZ
                 url: https://www.nzz.ch/startseite.rss
-              - name: Le News
-                url: https://lenews.ch/feed/
+              - name: SRF News
+                url: https://www.srf.ch/news/bnf/rss/1646
           - name: Austria
             sources:
               - name: ORF
@@ -244,10 +246,10 @@ continents:
         countries:
           - name: Sweden
             sources:
-              - name: Sweden Herald
-                url: https://swedenherald.com/rss.xml
               - name: SVT Nyheter
                 url: https://www.svt.se/nyheter/rss.xml
+              - name: Dagens Nyheter
+                url: https://www.dn.se/rss/
           - name: Norway
             sources:
               - name: NRK
@@ -262,14 +264,18 @@ continents:
                 url: https://cphpost.dk/feed/
           - name: Finland
             sources:
-              - name: Yle News English
-                url: https://yle.fi/uutiset/rss/uutiset.rss?osasto=news
+              - name: Yle Uutiset
+                url: https://www.yle.fi/rss/uutiset/paauutiset
+              - name: Helsingin Sanomat
+                url: https://www.hs.fi/rss/tuoreimmat.xml
               - name: Finland Today
                 url: https://finlandtoday.fi/feed
           - name: Iceland
             sources:
-              - name: RÚV English
-                url: https://www.ruv.is/rss/english
+              - name: RÚV
+                url: https://www.ruv.is/rss/frettir
+              - name: mbl.is
+                url: https://www.mbl.is/feeds/fp/
               - name: Reykjavík Grapevine
                 url: https://grapevine.is/feed/
       - slug: central-europe
@@ -283,26 +289,32 @@ continents:
                 url: https://www.novinky.cz/rss
           - name: Poland
             sources:
-              - name: Notes from Poland
-                url: https://notesfrompoland.com/feed/
-              # Krakow Post removed 2026-10-26: feed dead, newest entry 2020-09-30.
+              - name: TVN24
+                url: https://tvn24.pl/najnowsze.xml
+              - name: Rzeczpospolita
+                url: https://www.rp.pl/rss_main
           - name: Hungary
             sources:
-              - name: Daily News Hungary
-                url: https://dailynewshungary.com/feed/
-              - name: Hungary Today
-                url: https://hungarytoday.hu/feed/
+              - name: Telex
+                url: https://telex.hu/rss
+              - name: Index
+                url: https://www.index.hu/24ora/rss/
           - name: Romania
             sources:
-              - name: Business Review
-                url: https://business-review.eu/feed
+              - name: Digi24
+                url: https://www.digi24.ro/rss
+              - name: HotNews
+                url: https://www.hotnews.ro/rss
       - slug: southeast-europe
         name: Southeast Europe
         countries:
           - name: Greece
             sources:
-              - name: Greek City Times
-                url: https://greekcitytimes.com/feed/
+              - name: ERT News
+                url: https://www.ertnews.gr/feed/
+              # Kathimerini (paper of record) 403s the crawler; ERT is the public broadcaster.
+              - name: Proto Thema
+                url: https://www.protothema.gr/rss/
               - name: Keep Talking Greece
                 url: https://www.keeptalkinggreece.com/feed/
           - name: Serbia
@@ -313,20 +325,23 @@ continents:
                 url: https://www.danas.rs/feed/?column_id=0
           - name: Croatia
             sources:
-              - name: Croatia Week
-                url: https://croatiaweek.com/feed
+              - name: Index.hr
+                url: https://www.index.hr/rss
+              - name: Jutarnji list
+                url: https://www.jutarnji.hr/feed
               - name: Total Croatia News
                 url: https://www.total-croatia-news.com/feed
           - name: Bosnia and Herzegovina
             sources:
-              - name: Sarajevo Times
-                url: https://sarajevotimes.com/feed
+              - name: Klix.ba
+                url: https://www.klix.ba/rss
               - name: N1 Bosnia and Herzegovina
                 url: https://n1info.ba/feed/
           - name: Albania
             sources:
-              - name: Tirana Times
-                url: https://www.tiranatimes.com/feed/
+              - name: BalkanWeb
+                url: https://www.balkanweb.com/feed/
+              # Top Channel (most-watched) 403s the crawler.
           - name: North Macedonia
             sources:
               - name: MRT
@@ -335,61 +350,72 @@ continents:
                 url: https://a1on.mk/feed/
           - name: Kosovo
             sources:
-              - name: Prishtina Insight
-                url: https://prishtinainsight.com/feed/
+              - name: Koha
+                url: https://www.koha.net/rss
+              - name: Telegrafi
+                url: https://telegrafi.com/feed/
           - name: Cyprus
             sources:
+              - name: Philenews
+                url: https://www.philenews.com/feed/
               - name: Cyprus Mail
                 url: https://cyprus-mail.com/feed/
-              - name: Philenews English
-                url: https://en.philenews.com/feed/
       - slug: eastern-europe-caucasus
         name: Eastern Europe & Caucasus
         countries:
           - name: Ukraine
             sources:
-              - name: Ukrainska Pravda English
-                url: https://www.pravda.com.ua/eng/rss/
+              - name: Ukrainska Pravda
+                url: https://www.pravda.com.ua/rss/
               - name: Kyiv Independent
                 url: https://kyivindependent.com/news-archive/rss/
           - name: Belarus
             sources:
-              - name: Nasha Niva English
-                url: https://nashaniva.com/?c=rss-all&lang=en
+              - name: Nasha Niva
+                url: https://nashaniva.com/?c=rss-all
+              # SMA-702: prod IP has been getting 403 from nashaniva.com (both editions).
           - name: Moldova
             sources:
-              - name: Moldova.org
-                url: https://www.moldova.org/feed/
+              - name: Unimedia
+                url: https://unimedia.info/rss/news.xml
+              - name: NewsMaker
+                url: https://newsmaker.md/feed/
               - name: IPN English
                 url: https://ipn.md/en/feed/
           - name: Russia
             sources:
-              - name: The Moscow Times
-                url: https://www.themoscowtimes.com/rss/news
-              - name: Meduza English
-                url: https://meduza.io/rss/en/all
+              - name: Meduza
+                url: https://meduza.io/rss/all
+              - name: Kommersant
+                url: https://www.kommersant.ru/rss/news.xml
           - name: Turkey
             sources:
-              - name: Hürriyet Daily News
-                url: http://www.hurriyetdailynews.com/rss/home
+              - name: Hürriyet
+                url: https://www.hurriyet.com.tr/rss/anasayfa
+              - name: Sözcü
+                url: https://www.sozcu.com.tr/rss/tum-haberler.xml
               - name: Bianet English
                 url: https://bianet.org/rss/english
               - name: Anadolu Agency English
                 url: https://www.aa.com.tr/en/rss/default?cat=guncel
           - name: Georgia
             sources:
-              - name: Civil Georgia
-                url: https://civil.ge/feed
+              - name: Netgazeti
+                url: https://www.netgazeti.ge/feed/
+              # Interpressnews (largest agency) has no RSS feed.
+              - name: Publika
+                url: https://publika.ge/feed/
               - name: OC Media
                 url: https://oc-media.org/feed/
           - name: Armenia
             sources:
-              - name: EVN Report
-                url: https://evnreport.com/feed/
+              - name: News.am
+                url: https://news.am/hy/rss
           - name: Azerbaijan
             sources:
-              - name: Trend News Agency
-                url: https://www.trend.az/feeds/index.rss
+              - name: Report.az
+                url: https://report.az/rss
+              # All in-country media are government-aligned; independent Meydan TV feed is stale.
   - slug: africa
     name: Africa
     lat: 5
