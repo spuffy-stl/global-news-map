@@ -243,8 +243,30 @@ app = FastAPI(title="Global News Map", lifespan=lifespan)
 STATIC_DIR = os.path.join(config.APP_DIR, "static")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+# SMA-753: feed/country counts come from app/sources.yaml (the source of
+# truth), never hard-coded copy. index.html carries __FEED_COUNT__ /
+# __COUNTRY_COUNT__ tokens, filled once at startup; editing sources.yaml
+# alone updates every stated count (shell meta, SSR summaries, llms.txt).
+FEED_COUNT = config.feed_count()
+COUNTRY_COUNT = config.country_count()
+REGION_COUNT = sum(len(c.get("regions", [])) for c in config.CONTINENTS)
+
+
+def _fill_counts(text):
+    return text.replace("__FEED_COUNT__", str(FEED_COUNT)).replace(
+        "__COUNTRY_COUNT__", str(COUNTRY_COUNT)
+    )
+
+
 with open(os.path.join(STATIC_DIR, "index.html"), encoding="utf-8") as f:
-    INDEX_HTML = f.read()
+    INDEX_HTML = _fill_counts(f.read())
+
+# The shell's default meta description, exactly as filled into index.html —
+# _app_page swaps it for the per-page description.
+DEFAULT_DESCRIPTION = (
+    f"Explore today's headlines from {FEED_COUNT} local news outlets across "
+    f"{COUNTRY_COUNT} countries on a free interactive world news map. Updated every 6 hours."
+)
 
 # Cache-buster: version the app.js/style.css URLs from their mtimes at startup.
 # FastAPI StaticFiles serves static assets with a 4h Cache-Control, so without
@@ -314,15 +336,15 @@ def _app_page(title=None, description=None, canonical_path="/",
         )
     if description:
         page = page.replace(
-            '<meta name="description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
+            '<meta name="description" content="' + DEFAULT_DESCRIPTION + '">',
             '<meta name="description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta property="og:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
+            '<meta property="og:description" content="' + DEFAULT_DESCRIPTION + '">',
             '<meta property="og:description" content="' + html.escape(description, quote=True) + '">',
         )
         page = page.replace(
-            '<meta name="twitter:description" content="Explore today\'s headlines from 233 local news outlets across 141 countries on a free interactive world news map. Updated every 6 hours.">',
+            '<meta name="twitter:description" content="' + DEFAULT_DESCRIPTION + '">',
             '<meta name="twitter:description" content="' + html.escape(description, quote=True) + '">',
         )
     canonical = "https://globalnewsmap.net" + canonical_path
@@ -429,8 +451,8 @@ def index():
     )
     stories_html = (
         '<section class="answer-summary" aria-label="Today\u2019s summary">\n'
-        f"<p>As of {today}, the Global News Map tracks headlines from 233 local "
-        f"news outlets across 141 countries, updated every 6 hours. "
+        f"<p>As of {today}, the Global News Map tracks headlines from {FEED_COUNT} local "
+        f"news outlets across {COUNTRY_COUNT} countries, updated every 6 hours. "
         f"Top stories right now:</p>\n"
         + (f"<ol>\n{top}\n</ol>\n" if top else "")
         + "</section>\n"
@@ -492,6 +514,23 @@ def sitemap():
 LLMS_TXT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "llms.txt")
 
 
+def _no_feed_line():
+    """llms.txt 'Limits' bullet naming the countries with no feeds in
+    sources.yaml (editorial choice), or a no-gaps line when every country has one."""
+    names = sorted(_country_label(c) for _, _, c in config.iter_countries() if not c.get("sources"))
+    if not names:
+        return "- Every country on the map has at least one local feed."
+    if len(names) == 1:
+        listed, verb = names[0], "has"
+    else:
+        listed, verb = ", ".join(names[:-1]) + " and " + names[-1], "have"
+    word = "country" if len(names) == 1 else "countries"
+    return (
+        f"- {len(names)} {word} ({listed}) {verb} no local feed coverage by\n"
+        "  editorial choice and show no headlines."
+    )
+
+
 @app.get("/llms.txt")
 def llms_txt():
     """Plain-text site summary for AI assistants (GEO): what the service is,
@@ -503,6 +542,8 @@ def llms_txt():
             text = f.read()
     except OSError:
         raise HTTPException(status_code=404, detail="llms.txt not found")
+    # SMA-753: counts and the no-coverage list come from sources.yaml.
+    text = _fill_counts(text).replace("__NO_FEED_COUNTRIES__", _no_feed_line())
     today = datetime.now(timezone.utc).date().isoformat()
     try:
         stories = db.get_top_headlines(15)
@@ -542,7 +583,7 @@ def top_stories():
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Top world headlines today — Global News Map</title>
-<meta name="description" content="Today's top world headlines from local news outlets across 141 countries, updated every 6 hours by the Global News Map.">
+<meta name="description" content="Today's top world headlines from local news outlets across {COUNTRY_COUNT} countries, updated every 6 hours by the Global News Map.">
 <link rel="canonical" href="https://globalnewsmap.net/top">
 <style>
 body {{ font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px 16px; color: #1a1a1a; }}
@@ -567,10 +608,40 @@ footer {{ margin-top: 24px; font-size: 0.8rem; color: #666; }}
     return HTMLResponse(page)
 
 
-def _newsarticle_jsonld(items):
+def _latest_fetched(items):
+    """Newest fetched_at among the rendered items, as an aware UTC datetime
+    (SMA-741), or None when there are no items/parseable timestamps."""
+    latest = None
+    for it in items:
+        try:
+            dt = datetime.fromisoformat(it.get("fetched_at") or "")
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        if latest is None or dt > latest:
+            latest = dt
+    return latest.astimezone(timezone.utc).replace(microsecond=0) if latest else None
+
+
+def _freshness_stamp(updated):
+    """Visible, machine-readable 'Headlines updated <time>' line for country
+    and region pages (SMA-741). Empty when there is no timestamp."""
+    if updated is None:
+        return ""
+    label = updated.strftime("%B %-d, %Y, %H:%M UTC")
+    return (
+        f'<p class="freshness">Headlines updated '
+        f'<time datetime="{updated.isoformat()}">{label}</time></p>\n'
+    )
+
+
+def _newsarticle_jsonld(items, date_modified=None):
     """NewsArticle structured data for SEO (SMA-446): an ItemList of the ~15
     stories rendered on a /country/<slug> page so search engines can show
-    rich results. Capped at the rendered set — no extra payload."""
+    rich results. Capped at the rendered set — no extra payload.
+    date_modified (SMA-741) is the same latest-fetch time as the page's
+    visible freshness stamp."""
     elements = []
     for pos, it in enumerate(items, start=1):
         item = {"@type": "NewsArticle", "headline": it.get("title") or ""}
@@ -587,13 +658,15 @@ def _newsarticle_jsonld(items):
         "@type": "ItemList",
         "itemListElement": elements,
     }
+    if date_modified is not None:
+        payload["dateModified"] = date_modified.isoformat()
     # Escape "</" so a headline containing "</script>" can never break out of
     # the script tag (valid JSON escape).
     data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     return '<script type="application/ld+json">\n' + data + "\n</script>"
 
 
-def _country_summary(label, n_sources, source_word, items):
+def _country_summary(label, n_sources, source_word, items, updated=None):
     """Answer-friendly summary block for /country/<slug> (SMA-546, GEO).
 
     A single plain-HTML paragraph summarizing today's stories — story count,
@@ -616,11 +689,12 @@ def _country_summary(label, n_sources, source_word, items):
         f"<p>As of {today}, {html.escape(label)} has {len(items)} top {story_word} "
         f"from {n_sources} local news {source_word} on the Global News Map.</p>\n"
         + (f"<ol>\n{top}\n</ol>\n" if top else "")
+        + _freshness_stamp(updated)
         + "</section>\n"
     )
 
 
-def _region_summary(region_name, n_countries, n_sources, source_word, items):
+def _region_summary(region_name, n_countries, n_sources, source_word, items, updated=None):
     """Answer-friendly summary block for /region/<slug> (SMA-684, GEO).
 
     Mirrors _country_summary (SMA-546): a single plain-HTML paragraph —
@@ -645,6 +719,7 @@ def _region_summary(region_name, n_countries, n_sources, source_word, items):
         f"from {n_sources} local news {source_word} across {n_countries} {country_word} "
         f"on the Global News Map.</p>\n"
         + (f"<ol>\n{top}\n</ol>\n" if top else "")
+        + _freshness_stamp(updated)
         + "</section>\n"
     )
 
@@ -678,7 +753,8 @@ def country_page(slug: str):
     )
     # SMA-687: summary + cards are real markup inside #stories (previously
     # a <noscript> block Googlebot largely ignored).
-    stories_html = _country_summary(label, n_sources, source_word, items) + cards
+    updated = _latest_fetched(items)
+    stories_html = _country_summary(label, n_sources, source_word, items, updated) + cards
     # SMA-505: server-rendered breadcrumb + prev/next links. Real <a> tags
     # (the client's breadcrumb is buttons, invisible to crawlers) so organic
     # landings have an onward path and crawlers can follow country pages.
@@ -686,7 +762,7 @@ def country_page(slug: str):
     # SMA-692: a country with no fresh stories is delisted — noindex the
     # page (it is also out of the sitemap) instead of presenting stale or
     # empty content as a live news page.
-    head_extra = _newsarticle_jsonld(items)
+    head_extra = _newsarticle_jsonld(items, updated)
     if not items:
         head_extra += '\n<meta name="robots" content="noindex">'
     _cont, _region = _SLUG_TO_PLACE[slug]
@@ -777,14 +853,15 @@ def region_page(slug: str):
     )
     # SMA-687: summary + cards as real markup inside #stories (previously
     # a <noscript> block); the region answer-summary ships with them.
+    updated = _latest_fetched(items)
     stories_html = (
-        _region_summary(region_name, n_countries, n_sources, source_word, items)
+        _region_summary(region_name, n_countries, n_sources, source_word, items, updated)
         + cards
         + '\n<p><a href="/">Back to the interactive world map</a></p>\n'
     )
     nav = _region_nav(cont, region)
     # SMA-692: same delisting rule as country pages.
-    head_extra = _newsarticle_jsonld(items)
+    head_extra = _newsarticle_jsonld(items, updated)
     if not items:
         head_extra += '\n<meta name="robots" content="noindex">'
     return HTMLResponse(
@@ -821,7 +898,7 @@ a {{ color: #0b5fff; }}
 </head>
 <body>
 <h1>🌐 Hmm, no region page for “{safe}”</h1>
-<p>That link doesn’t match any of the 22 regions on the map. It may be a typo, or the page moved.</p>
+<p>That link doesn’t match any of the {REGION_COUNT} regions on the map. It may be a typo, or the page moved.</p>
 <p><a href="/">Back to the world map</a> · <a href="/top">Today’s top headlines</a></p>
 </body>
 </html>"""
@@ -843,7 +920,7 @@ a {{ color: #0b5fff; }}
 </head>
 <body>
 <h1>🌐 Hmm, no country page for “{safe}”</h1>
-<p>That link doesn’t match any of the 141 countries on the map. It may be a typo, or the page moved.</p>
+<p>That link doesn’t match any of the {COUNTRY_COUNT} countries on the map. It may be a typo, or the page moved.</p>
 <p><a href="/">Back to the world map</a> · <a href="/top">Today’s top headlines</a></p>
 </body>
 </html>"""
