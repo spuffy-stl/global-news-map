@@ -426,47 +426,47 @@ continents:
         countries:
           - name: Egypt
             sources:
-              - name: Egypt Independent
-                url: https://www.egyptindependent.com/feed/
+              - name: Al-Masry Al-Youm
+                url: https://www.almasryalyoum.com/rss/rssfeeds
               - name: Egyptian Streets
                 url: https://egyptianstreets.com/feed/
           - name: Morocco
             sources:
-              - name: Hespress English
-                url: https://en.hespress.com/feed
+              - name: Hespress
+                url: https://www.hespress.com/feed
               - name: TelQuel
                 url: https://telquel.ma/feed
           - name: Algeria
             sources:
+              - name: Echorouk
+                url: https://www.echoroukonline.com/feed
               - name: TSA Algérie
                 url: https://www.tsa-algerie.com/feed/
               - name: Algérie360
                 url: https://www.algerie360.com/feed/
           - name: Tunisia
             sources:
-              - name: Leaders
-                url: https://www.leaders.com.tn/rss
               - name: Mosaïque FM
+                url: https://www.mosaiquefm.net/ar/rss
+              - name: Mosaïque FM (FR)
                 url: https://www.mosaiquefm.net/fr/rss
           - name: Libya
             sources:
               - name: Libya Herald
-                url: https://libyaherald.com/feed/
+                url: https://libyaherald.com/feed
       - slug: west-africa
         name: West Africa
         countries:
           - name: Nigeria
             sources:
-              - name: Premium Times
-                url: https://www.premiumtimesng.com/feed
               - name: Punch
                 url: https://rss.punchng.com/v1/category/latest_news
+              - name: Premium Times
+                url: https://www.premiumtimesng.com/feed
           - name: Niger
             sources:
               - name: Tam Tam Info
                 url: https://tamtaminfo.com/feed/
-              - name: ActuNiger
-                url: https://www.actuniger.com/component/joomrss/articles-offline.feed?Itemid=101
           - name: Mali
             sources:
               - name: Journal du Mali
@@ -481,8 +481,8 @@ continents:
                 url: https://burkina24.com/feed/
           - name: Senegal
             sources:
-              - name: Senego
-                url: https://senego.com/feed
+              - name: Seneweb
+                url: https://www.seneweb.com/feed
               - name: APS
                 url: https://aps.sn/feed/
           - name: Guinea
@@ -497,18 +497,18 @@ continents:
                 url: https://www.odemocratagb.com/?feed=rss2
           - name: Sierra Leone
             sources:
-              - name: Sierra Leone Telegraph
-                url: https://www.thesierraleonetelegraph.com/feed/
+              - name: Sierraloaded
+                url: https://sierraloaded.sl/feed/
               - name: Awoko
                 url: https://awokonewspapersl.com/feed/
           - name: Liberia
             sources:
-              - name: Liberian Observer
-                url: https://www.liberianobserver.com/search/?f=rss&t=article&l=50&s=start_time&sd=desc
               - name: FrontPageAfrica
                 url: https://frontpageafricaonline.com/feed/
           - name: Ivory Coast
             sources:
+              - name: L'Infodrome
+                url: https://www.linfodrome.com/rss
               - name: AIP
                 url: https://www.aip.ci/feed/
               - name: Afrik Soir
@@ -530,14 +530,12 @@ continents:
                 url: https://tchadinfos.com/feed/
           - name: Cameroon
             sources:
-              - name: 237online
-                url: https://www.237online.com/feed/
               - name: Actu Cameroun
                 url: https://actucameroun.com/feed/
+              - name: Journal du Cameroun
+                url: https://fr.journalducameroun.com/feed/
           - name: Central African Republic
             sources:
-              - name: Corbeau News
-                url: https://corbeaunews-centrafrique.org/feed/
               - name: Radio Ndeke Luka
                 url: https://www.radiondekeluka.org/feed
           - name: Gabon
@@ -565,12 +563,16 @@ continents:
         countries:
           - name: Sudan
             sources:
+              - name: Dabanga Arabic
+                url: https://www.dabangasudan.org/ar/feed
               - name: Radio Dabanga
                 url: https://www.dabangasudan.org/en/feed
           - name: South Sudan
             sources:
               - name: Radio Tamazuj
                 url: https://www.radiotamazuj.org/en/feed
+              - name: Eye Radio
+                url: https://eyeradio.org/feed/
           - name: Ethiopia
             sources:
               - name: The Reporter Ethiopia
@@ -579,10 +581,8 @@ continents:
                 url: https://addisfortune.news/feed
           - name: Somalia
             sources:
-              - name: Horseed Media
-                url: https://horseedmedia.net/feed/
-              - name: Caasimada Online
-                url: https://www.caasimada.net/feed/
+              - name: Hiiraan Online
+                url: https://hiiraan.com/news.xml
           - name: Kenya
             sources:
               - name: The Standard
@@ -593,11 +593,13 @@ continents:
                 url: https://peopledaily.digital/feed/
           - name: Uganda
             sources:
-              - name: PML Daily
-                url: https://pmldaily.com/feed
+              - name: Daily Monitor
+                url: https://www.monitor.co.ug/rss.xml
           - name: United Republic of Tanzania
             label: Tanzania
             sources:
+              - name: Mwananchi
+                url: https://www.mwananchi.co.tz/rss.xml
               - name: Daily News Tanzania
                 url: https://dailynews.co.tz/feed/
               - name: HabariLeo
@@ -617,12 +619,16 @@ continents:
                 url: https://correiokianda.info/feed/
           - name: Zambia
             sources:
+              - name: News Diggers
+                url: https://diggers.news/feed/
               - name: Times of Zambia
                 url: https://times.co.zm/feed/
               - name: Lusaka Times
                 url: http://feeds.feedburner.com/lusakatimes/hyJU
           - name: Zimbabwe
             sources:
+              - name: NewZimbabwe
+                url: https://www.newzimbabwe.com/feed/
               - name: ZimLive
                 url: https://www.zimlive.com/feed/
               - name: Nehanda Radio
@@ -635,8 +641,8 @@ continents:
                 url: https://cartamz.com/feed/
           - name: Madagascar
             sources:
-              - name: Madagascar Tribune
-                url: https://www.madagascar-tribune.com/spip.php?page=backend
+              - name: Midi Madagasikara
+                url: https://midi-madagasikara.mg/feed/
               - name: 2424.mg
                 url: https://www.2424.mg/feed/
           - name: South Africa
@@ -649,8 +655,6 @@ continents:
                 url: https://www.sabcnews.com/sabcnews/feed/
           - name: Namibia
             sources:
-              - name: New Era
-                url: https://neweralive.na/feed/
               - name: The Namibian
                 url: https://www.namibian.com.na/feed/
           - name: Botswana
@@ -662,8 +666,8 @@ continents:
           - name: eSwatini
             label: Eswatini
             sources:
-              - name: Eswatini Observer
-                url: https://www.eswatiniobserver.com/feed/
+              - name: Times of Eswatini
+                url: https://times.co.sz/feed/
   - slug: middle-east
     name: Middle East
     lat: 25
