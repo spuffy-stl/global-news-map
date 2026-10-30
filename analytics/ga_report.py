@@ -22,8 +22,12 @@ SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 EVENTS = ["select_region", "click_story",
           "stories_shown",  # SMA-460: impression events for story CTR
           "share_country",  # SMA-445: share-button usage
-          "share_story",  # SMA-513: per-story share affordance
-          "share_nudge_shown", "share_nudge_click", "share_nudge_dismiss",  # SMA-617: SMA-602 post-click share nudge funnel
+          # SMA-757: share_story (SMA-513 per-story affordance) and the
+          # share_nudge_* funnel (SMA-617) are DELIBERATELY absent — both
+          # surfaces were removed (per-card share UI in SMA-690, post-click
+          # nudge per the app.js:822 note), so no code path can fire them
+          # and their permanent 0s kept sending the loop on ghost hunts.
+          # Re-add only if a share surface that fires them ships again.
           "select_world", "select_continent", "select_country",
           "return_visit", "return_badge_click",  # SMA-497: return-hook reach
           "hook_shown",  # SMA-582: hook impression (funnel denominator)
