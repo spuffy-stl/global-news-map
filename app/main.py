@@ -1006,7 +1006,12 @@ def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)
     q = q.strip()
     if len(q) < 2:
         return []
-    return db.search_headlines(q, limit)
+    results = db.search_headlines(q, limit)
+    if not results:
+        # SMA-714: record the dead-end term for the daily-loop readout
+        # (GA's search_no_results carries no readable query text).
+        db.record_failed_search(q)
+    return results
 
 
 @app.get("/api/status")
@@ -1019,6 +1024,9 @@ def get_status():
         "last_fetched": st["last_fetched"],
         "crawl": "every-6-hours-staggered",
         "server_time": datetime.now(timezone.utc).isoformat(),
+        # SMA-714: top failed story-search terms (first-party aggregate;
+        # GA's search_no_results carries no readable query text).
+        "failed_searches": db.get_failed_searches(),
         # SMA-692: per-feed health (last success, item count, newest entry)
         # so dead or stale feeds are visible instead of silently leaving
         # countries serving years-old stories.
