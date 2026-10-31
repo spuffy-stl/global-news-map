@@ -60,6 +60,22 @@ CREATE TABLE IF NOT EXISTS feed_health (
 );
 """
 
+# SMA-714: first-party aggregate of failed story searches. GA captures no
+# query text for search_no_results (the param is sent but not registered as
+# a custom dimension, and the SA has Viewer-only access so it cannot
+# register one), so the server records the dead-end terms itself. Privacy:
+# normalized query text only, aggregated counts, no IP, no user id, no
+# per-event timestamps beyond first/last seen — consistent with the
+# 2026-09-27 analytics stance (anonymous, no persistent identifiers).
+FAILED_SEARCH_SCHEMA = """
+CREATE TABLE IF NOT EXISTS failed_searches (
+    query TEXT PRIMARY KEY,
+    count INTEGER NOT NULL DEFAULT 0,
+    first_seen TEXT,
+    last_seen TEXT
+);
+"""
+
 # Backwards-compatible alias (tests/scripts may import SCHEMA).
 SCHEMA = TABLE_SCHEMA + INDEXES
 
@@ -160,6 +176,7 @@ def init_db():
             _migrate(conn)
             conn.executescript(INDEXES)
             conn.executescript(FEED_HEALTH_SCHEMA)
+            conn.executescript(FAILED_SEARCH_SCHEMA)
             conn.commit()
         finally:
             conn.close()
@@ -599,6 +616,48 @@ def get_country_counts():
                 (cut_fresh, cut_fallback, cut_fresh),
             )
             return {r["country"]: r["count"] for r in cur.fetchall()}
+        finally:
+            conn.close()
+
+
+# --- Failed story searches (SMA-714) ---------------------------------------
+# Note: the server sees every story-search query, including ones that matched
+# a place client-side, so this aggregate is a superset of GA's
+# search_no_results dead ends — the GA count stays the dead-end denominator,
+# this table supplies the actual terms.
+
+def record_failed_search(query):
+    """Count one empty story-search result, keyed by normalized query."""
+    q = " ".join((query or "").lower().split())[:40]
+    if not q:
+        return
+    now = utcnow_iso()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """INSERT INTO failed_searches (query, count, first_seen, last_seen)
+                   VALUES (?, 1, ?, ?)
+                   ON CONFLICT(query) DO UPDATE SET
+                       count = count + 1, last_seen = excluded.last_seen""",
+                (q, now, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_failed_searches(limit=20):
+    """Top failed story-search terms by count, for the /api/status readout."""
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                """SELECT query, count, last_seen FROM failed_searches
+                   ORDER BY count DESC, last_seen DESC LIMIT ?""",
+                (limit,),
+            )
+            return [dict(r) for r in cur.fetchall()]
         finally:
             conn.close()
 
