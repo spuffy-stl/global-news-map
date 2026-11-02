@@ -65,6 +65,13 @@
   // stamp fired nothing and the stamp was overwritten).
   function fireReturnVisit(items, showBadge) {
     if (!lastVisitTs || returnVisitFired) return;
+    // SMA-779: stampVisit() runs on every page load, so a second full load
+    // inside the same session (reload, second tab) sees a minutes-old stamp
+    // and would fire return_visit for what GA still counts as the same,
+    // new-user session — the return_visit=3 vs 0-returning-users mismatch.
+    // Require a 30-minute gap (GA's session timeout) before a stamp counts
+    // as a return, so return_visit aligns with GA's newVsReturning dimension.
+    if (Date.now() - lastVisitTs < 30 * 60 * 1000) return;
     returnVisitFired = true;
     var n = items ? items.filter(isNewStory).length : 0;
     trackEvent("return_visit", {
