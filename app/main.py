@@ -61,6 +61,12 @@ def _country_nav(slug):
     crawlers and useless to a visitor who lands directly on the page. These
     real <a> links give organic landings an onward path (within the same
     region) and give crawlers internal links between the 141 country pages.
+
+    SMA-791: also renders a same-region neighbor strip — every other country
+    in the region with fresh stories — so a deep landing (e.g. from an AI
+    assistant) has a discovery surface instead of a single-page dead end.
+    Neighbors use the SMA-692 coverage rule (fresh-story count > 0), so
+    zero-coverage countries are never linked.
     """
     cont, region = _SLUG_TO_PLACE[slug]
     siblings = region["countries"]
@@ -89,6 +95,27 @@ def _country_nav(slug):
             + '<span class="crumb-sep">|</span>'.join(parts)
             + "</span>"
         )
+    # SMA-791: same-region neighbor strip (excludes this country and any
+    # zero-coverage country, per the SMA-692 fresh-story rule).
+    neighbors = ""
+    try:
+        counts = db.get_country_counts()
+    except Exception:
+        counts = {}
+    neighbor_links = [
+        f'<a class="crumb" href="/country/{country_slug(c["name"])}">'
+        f"{html.escape(_country_label(c))}</a>"
+        for c in siblings
+        if country_slug(c["name"]) != slug
+        and counts.get(c["name"], 0) > 0
+    ]
+    if neighbor_links:
+        neighbors = (
+            '<span class="neighbors" aria-label="More countries in this region">'
+            f'<span class="crumb current">More in {html.escape(region["name"])}:</span> '
+            + '<span class="crumb-sep">·</span>'.join(neighbor_links)
+            + "</span>"
+        )
     return (
         '<nav class="country-nav" aria-label="Country navigation">'
         '<span class="breadcrumb">'
@@ -99,6 +126,7 @@ def _country_nav(slug):
         f'<span class="crumb current">{html.escape(_country_label(country))}</span>'
         "</span>"
         + pager
+        + neighbors
         + "</nav>"
     )
 

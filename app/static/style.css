@@ -262,6 +262,9 @@ body {
 .country-nav .breadcrumb { margin: 0; }
 .country-nav a.crumb { text-decoration: none; }
 .country-nav .pager { display: flex; align-items: center; gap: 10px; }
+/* SMA-791: same-region neighbor strip on country pages. Full-width row so
+   the discovery links don't crowd the breadcrumb/pager line. */
+.country-nav .neighbors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; flex-basis: 100%; }
 .chips-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   --chip-color: var(--accent);
