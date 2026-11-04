@@ -1026,6 +1026,20 @@ def get_top_headlines(limit: int = Query(15, ge=1, le=50)):
     return db.get_top_headlines(limit)
 
 
+def is_url_like(q: str) -> bool:
+    """SMA-795: True when the query is a pasted URL, not a search term.
+
+    A visitor pasting https://holdonangola.com/ into the search box can
+    never match a headline, and logging it pollutes the failed-search
+    aggregate (SMA-714) with non-queries. Matches an explicit scheme, or
+    a bare domain with an optional path (www. prefix optional).
+    """
+    q = q.strip().lower()
+    if "://" in q:
+        return True
+    return re.match(r"^(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(/\S*)?$", q) is not None
+
+
 @app.get("/api/search")
 def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)):
     """SMA-691: headline topic search behind the search box's Stories
@@ -1035,9 +1049,11 @@ def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)
     if len(q) < 2:
         return []
     results = db.search_headlines(q, limit)
-    if not results:
+    if not results and not is_url_like(q):
         # SMA-714: record the dead-end term for the daily-loop readout
         # (GA's search_no_results carries no readable query text).
+        # SMA-795: URL-like queries are excluded — they are pastes, not
+        # failed terms, and would pollute the aggregate.
         db.record_failed_search(q)
     return results
 
