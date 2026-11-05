@@ -4,6 +4,9 @@
 - Each unique feed URL is fetched once per run, then attributed to every
   subscribed country.
 - Proper User-Agent, request timeouts, 1s pause between feeds.
+- Browser-like Accept / Accept-Language headers (SMA-702 option 1): some
+  publishers/CDNs 403 feeds that send only a bare User-Agent; a full
+  header set is the cheap first attempt before any proxy work.
 - Per-feed error handling: one dead feed can never kill a run.
 """
 import logging
@@ -19,7 +22,15 @@ from .textclean import clean_summary, clean_title
 log = logging.getLogger("global-news-map.crawler")
 
 _session = requests.Session()
-_session.headers.update({"User-Agent": config.USER_AGENT})
+_session.headers.update({
+    "User-Agent": config.USER_AGENT,
+    # SMA-702 option 1: a bare UA-only request gets 403s from several
+    # publishers/CDNs that block datacenter IPs; a full browser-like
+    # header set is the cheap first attempt at passing their filters.
+    "Accept": "application/rss+xml, application/xml, text/xml, */*; q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://globalnewsmap.net/",
+})
 
 
 def _fetch(url):
