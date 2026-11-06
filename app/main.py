@@ -594,6 +594,31 @@ def llms_txt():
         )
     if not stories:
         lines.append("No headlines in the database yet.")
+    # SMA-801: every country page, grouped continent > region, so an AI
+    # assistant grounding an answer about any country has a machine-readable
+    # pointer to that country's page (and its fresh headlines). Feedless
+    # countries are listed too, annotated — their pages exist but show no
+    # headlines (see Limits above).
+    lines += ["", "## Countries", ""]
+    for cont in config.CONTINENTS:
+        lines.append("### %s" % cont.get("name", cont["slug"]))
+        lines.append("")
+        for region in cont.get("regions", []):
+            lines.append("#### %s" % region.get("name", region["slug"]))
+            lines.append("")
+            for country in region.get("countries", []):
+                slug = country_slug(country["name"])
+                label = _country_label(country)
+                note = (
+                    " (no local feed coverage)"
+                    if not country.get("sources")
+                    else ""
+                )
+                lines.append(
+                    "- %s%s — https://globalnewsmap.net/country/%s"
+                    % (label, note, slug)
+                )
+            lines.append("")
     text = text.rstrip("\n") + "\n" + "\n".join(lines) + "\n"
     return Response(content=text, media_type="text/plain; charset=utf-8")
 
