@@ -756,6 +756,12 @@ continents:
                 url: https://en.mehrnews.com/rss
               - name: IRNA English
                 url: https://en.irna.ir/rss
+              # SMA-701 (2026-11-07): all three Tehran-based feeds time out
+              # from the prod VM, so Iran is back to zero coverage. Iran
+              # International is London-based but widely read by Iranians
+              # (local-rule second clause) and its feed validates fresh.
+              - name: Iran International
+                url: https://www.iranintl.com/en/feed
           - name: Yemen
             sources:
               - name: 26 September
