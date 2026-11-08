@@ -623,6 +623,82 @@ def llms_txt():
     return Response(content=text, media_type="text/plain; charset=utf-8")
 
 
+@app.get("/llms-full.txt")
+def llms_full_txt():
+    """Per-country top headlines for AI assistants (SMA-810, follow-up to
+    SMA-801): /llms.txt is links-only, so an assistant grounding an answer
+    about a country gets no story content to cite. This companion file lists
+    the top 3 fresh headlines per country, grouped continent > region >
+    country, rendered live from the headline database (same freshness window
+    as the story panels, SMA-692) — no manual refresh step."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        by_country = db.get_headlines_by_country(3)
+    except Exception:
+        by_country = {}
+    lines = [
+        "# Global News Map — full country headlines",
+        "",
+        "> Top 3 fresh headlines per country from local news outlets,",
+        "> grouped continent > region > country. Generated %s from the" % today,
+        "> latest crawl (headlines refresh every 6 hours). Headlines belong",
+        "> to their publishers — cite the article URL and name the outlet.",
+        "",
+        "Full country pages: https://globalnewsmap.net/country/<slug>",
+        "Links-only index: https://globalnewsmap.net/llms.txt",
+        "",
+    ]
+    n_countries = 0
+    n_with_stories = 0
+    for cont in config.CONTINENTS:
+        lines.append("## %s" % cont.get("name", cont["slug"]))
+        lines.append("")
+        for region in cont.get("regions", []):
+            lines.append("### %s" % region.get("name", region["slug"]))
+            lines.append("")
+            for country in region.get("countries", []):
+                n_countries += 1
+                slug = country_slug(country["name"])
+                label = _country_label(country)
+                lines.append(
+                    "#### %s — https://globalnewsmap.net/country/%s"
+                    % (label, slug)
+                )
+                if not country.get("sources"):
+                    lines.append("")
+                    lines.append("- No local feed coverage (editorial choice).")
+                    lines.append("")
+                    continue
+                items = by_country.get(country["name"], [])
+                if not items:
+                    lines.append("")
+                    lines.append("- No fresh headlines right now.")
+                    lines.append("")
+                    continue
+                n_with_stories += 1
+                lines.append("")
+                for it in items:
+                    when = (it.get("published_at") or it.get("fetched_at") or "")[:10]
+                    lines.append(
+                        "- %s — %s (%s) %s"
+                        % (
+                            it.get("title", ""),
+                            it.get("source", ""),
+                            when,
+                            it.get("url", ""),
+                        )
+                    )
+                lines.append("")
+    lines.insert(
+        7,
+        "Countries with fresh headlines: %d of %d."
+        % (n_with_stories, n_countries),
+    )
+    return Response(
+        content="\n".join(lines), media_type="text/plain; charset=utf-8"
+    )
+
+
 @app.get("/top")
 def top_stories():
     """Server-rendered list of today's top headlines (SMA-394): crawlable

@@ -541,6 +541,38 @@ def get_top_headlines(limit=15):
     return picked
 
 
+def get_headlines_by_country(limit_per_country=3):
+    """ADMIN name -> up to `limit_per_country` freshest headlines (SMA-810).
+
+    One query over the same freshness window as get_headlines (SMA-692),
+    grouped in code — feeds /llms-full.txt so AI assistants get citable
+    per-country story content, not just links. Countries with no fresh
+    stories are absent from the result (the caller lists them as empty).
+    """
+    cut_fresh, cut_fallback = _fresh_cutoffs()
+    with _lock:
+        conn = _connect()
+        try:
+            cur = conn.execute(
+                "SELECT continent, region, country, title, summary, url, source,"
+                " published_at, fetched_at FROM headlines WHERE "
+                + _FRESH_PREDICATE
+                + " ORDER BY country ASC,"
+                " COALESCE(published_at, fetched_at) DESC, id DESC",
+                (cut_fresh, cut_fallback, cut_fresh),
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+    grouped = {}
+    for row in rows:
+        country = row.get("country") or ""
+        items = grouped.setdefault(country, [])
+        if len(items) < limit_per_country:
+            items.append(row)
+    return grouped
+
+
 def get_status():
     """Per-continent headline counts and latest fetch timestamps, plus totals."""
     with _lock:
