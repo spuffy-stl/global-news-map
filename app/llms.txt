@@ -12,6 +12,7 @@ links out to the original publisher article.
 
 - Interactive map: https://globalnewsmap.net/
 - Plain headline list (no JavaScript needed): https://globalnewsmap.net/top
+- Full per-country headlines (top 3 fresh stories per country): https://globalnewsmap.net/llms-full.txt
 - Per-country shareable pages: https://globalnewsmap.net/country/<slug>
   (e.g. https://globalnewsmap.net/country/south-korea)
 - Per-region shareable pages: https://globalnewsmap.net/region/<slug>
