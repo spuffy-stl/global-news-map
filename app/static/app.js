@@ -257,11 +257,72 @@
 
   // Analytics: best-effort. Only present when a GA4 measurement ID is configured
   // server-side; never blocks the UI or throws if the tag hasn't loaded.
-  function trackEvent(name, params) {
+  // SMA-816: every event is also sent to the first-party session log;
+  // `sessionExtra` adds props for that log only (the GA payload is unchanged).
+  function trackEvent(name, params, sessionExtra) {
     try {
       if (typeof window.gtag === "function") window.gtag("event", name, params || {});
     } catch (e) { /* analytics is optional */ }
+    var props = {};
+    var k;
+    for (k in (params || {})) props[k] = params[k];
+    for (k in (sessionExtra || {})) props[k] = sessionExtra[k];
+    sessionEvent(name, props);
   }
+
+  // SMA-816: anonymous per-session event log (server: app/sessions.py).
+  // The session id is random per tab and lives only in sessionStorage — no
+  // cookie, no localStorage, nothing that links two visits. Function
+  // declarations with lazy state so early hoisted calls (return_visit) work.
+  var gnmSessionId = null;
+  function sessionId() {
+    if (gnmSessionId) return gnmSessionId;
+    var id = "";
+    try { id = window.sessionStorage.getItem("gnm_session_id") || ""; } catch (e) {}
+    if (!id) {
+      try {
+        id = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : "";
+      } catch (e) { id = ""; }
+      if (!id) {
+        for (var i = 0; i < 32; i++) id += Math.floor(Math.random() * 16).toString(16);
+      }
+      try { window.sessionStorage.setItem("gnm_session_id", id); } catch (e) {}
+    }
+    gnmSessionId = id;
+    return id;
+  }
+  function sessionEvent(name, props) {
+    try {
+      var body = JSON.stringify({ session_id: sessionId(), event: name, props: props || {} });
+      // text/plain beacon: same-origin, no preflight, survives page unload.
+      if (navigator.sendBeacon && navigator.sendBeacon("/api/events", body)) return;
+      fetch("/api/events", { method: "POST", body: body, keepalive: true }).catch(function () {});
+    } catch (e) { /* analytics is optional */ }
+  }
+  (function startSession() {
+    var isNew = true;
+    try { isNew = !window.sessionStorage.getItem("gnm_session_id"); } catch (e) {}
+    var ref = "";
+    try {
+      if (document.referrer) {
+        var host = new URL(document.referrer).hostname;
+        if (host && host !== window.location.hostname) ref = host;
+      }
+    } catch (e) {}
+    // A reload in the same tab keeps the session id; log it as a page load
+    // inside the session rather than a second start.
+    sessionEvent(isNew ? "session_start" : "page_load", {
+      path: window.location.pathname || "/",
+      ref: ref
+    });
+    var ended = false;
+    window.addEventListener("pagehide", function () {
+      if (ended) return;
+      ended = true;
+      sessionEvent("session_end", { path: window.location.pathname || "/" });
+    });
+    window.addEventListener("pageshow", function (e) { if (e.persisted) ended = false; });
+  })();
 
   // SMA-589: the landing hook and the world headlines used to wait for the
   // full boot chain (hierarchy + the 820KB countries geojson) inside
@@ -1055,7 +1116,7 @@
     trackEvent("click_story", {
       level: panelLevel,
       source: art ? art.getAttribute("data-source") || "" : "",
-    });
+    }, { story: a.href || "" });
   });
 
   // SMA-566: whole-card click — the card looked static (title in plain ink,
@@ -1073,7 +1134,7 @@
       level: panelLevel,
       source: art.getAttribute("data-source") || "",
       via: "card",
-    });
+    }, { story: link.href });
     window.open(link.href, "_blank", "noopener");
   });
 

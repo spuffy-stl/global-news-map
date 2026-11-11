@@ -11,11 +11,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, crawler, db
+from . import config, crawler, db, sessions
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("global-news-map")
@@ -225,6 +226,7 @@ def run_crawl(continents=None):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    sessions.init_db()  # SMA-816
     # Purge rows from retired taxonomy versions (e.g. pre-hierarchy
     # 'latin-america' rows left by the SMA-360 rebuild) so /api/status
     # only reports live continents. crawl_all() repeats this after each crawl.
@@ -1197,6 +1199,31 @@ def get_status():
             "feeds": health,
         },
     }
+
+
+@app.post("/api/events", status_code=204)
+async def post_event(request: Request):
+    """SMA-816: anonymous per-session event beacon (see app/sessions.py).
+    Always 204 — analytics must never surface an error to the visitor;
+    invalid or non-allow-listed events are dropped silently."""
+    body = await request.body()
+    if len(body) <= sessions.MAX_BODY_BYTES:
+        try:
+            parsed = sessions.parse_event(json.loads(body))
+        except (ValueError, UnicodeDecodeError):
+            parsed = None
+        if parsed:
+            await run_in_threadpool(sessions.record_event, *parsed)
+    return Response(status_code=204)
+
+
+@app.get("/api/analytics/sessions")
+def get_analytics_sessions(limit: int = Query(25, ge=1, le=100)):
+    """SMA-816: last N sessions as ordered event sequences + stage reach.
+    Read by analytics/sessions_report.py."""
+    return JSONResponse(
+        sessions.get_sessions(limit), headers={"Cache-Control": "no-store"}
+    )
 
 
 # Rate limit for POST /api/refresh (SMA-392): a full crawl is the most
