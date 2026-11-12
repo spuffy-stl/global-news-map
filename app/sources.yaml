@@ -556,8 +556,6 @@ continents:
             sources:
               - name: Journal de Brazza
                 url: https://www.journaldebrazza.com/feed/
-              - name: ADIAC
-                url: https://www.adiac-congo.com/flux_rss_home
       - slug: east-africa
         name: East Africa
         countries:
@@ -593,8 +591,8 @@ continents:
                 url: https://peopledaily.digital/feed/
           - name: Uganda
             sources:
-              - name: Daily Monitor
-                url: https://www.monitor.co.ug/rss.xml
+              - name: The Observer
+                url: https://observer.ug/feed/
           - name: United Republic of Tanzania
             label: Tanzania
             sources:
