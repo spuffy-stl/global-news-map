@@ -21,7 +21,7 @@ BASE = "https://analyticsdata.googleapis.com/v1beta"
 SCOPES = ["https://www.googleapis.com/auth/analytics.readonly"]
 EVENTS = ["select_region", "click_story",
           "stories_shown",  # SMA-460: impression events for story CTR
-          "share_country",  # SMA-445: share-button usage
+          # SMA-800: share_country dropped too — the panel Share button was retired (zero uses).
           # SMA-757: share_story (SMA-513 per-story affordance) and the
           # share_nudge_* funnel (SMA-617) are DELIBERATELY absent — both
           # surfaces were removed (per-card share UI in SMA-690, post-click

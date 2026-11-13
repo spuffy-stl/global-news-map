@@ -24,7 +24,6 @@
   var updatedEl = document.getElementById("updated");
   var chipsEl = document.getElementById("chips");
   var panelClose = document.getElementById("panelClose");
-  var shareBtn = document.getElementById("shareBtn");
   var zoomResetBtn = document.getElementById("zoomReset");
   var zoomTipEl = document.getElementById("zoomTip");
   var freshBadge = document.getElementById("freshBadge");
@@ -479,76 +478,6 @@
     }
   });
 
-  // Story-panel share button (SMA-445): visible only on a country view, shares
-  // the canonical /country/<slug> URL — Web Share API on mobile, clipboard
-  // fallback with a "Copied" confirmation on desktop.
-  var CANONICAL_BASE = "https://globalnewsmap.net";
-  var shareCountry = null; // {label, slug}
-  var shareItems = []; // story items shown in the current country view —
-  // feeds the pre-composed share text (SMA-549)
-  function setShareCountry(label, admin) {
-    if (label && admin) {
-      shareCountry = { label: label, slug: countrySlug(admin) };
-      shareBtn.classList.remove("hidden");
-    } else {
-      shareCountry = null;
-      shareBtn.classList.add("hidden");
-    }
-  }
-  function copyText(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text);
-    }
-    return new Promise(function (resolve, reject) {
-      try {
-        var ta = document.createElement("textarea");
-        ta.value = text;
-        ta.style.position = "fixed";
-        ta.style.opacity = "0";
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = document.execCommand("copy");
-        document.body.removeChild(ta);
-        if (ok) resolve(); else reject(new Error("execCommand copy failed"));
-      } catch (e) { reject(e); }
-    });
-  }
-  // SMA-549: the shared text is pre-composed (top headlines + sources), not a
-  // bare URL — a pasted share is self-contained and worth sending. The
-  // clipboard path copies the full text, so desktop users paste into chats
-  // with context; mobile uses the native share sheet.
-  function countryShareText() {
-    var lines = [shareCountry.label + " News — Today's Headlines on the News Map", ""];
-    var top = shareItems.slice(0, 3);
-    for (var i = 0; i < top.length; i++) {
-      lines.push("\u2022 " + (top[i].title || "") +
-        (top[i].source ? " — " + top[i].source : ""));
-    }
-    if (top.length) lines.push("");
-    lines.push(CANONICAL_BASE + "/country/" + shareCountry.slug);
-    return lines.join("\n");
-  }
-  shareBtn.addEventListener("click", function () {
-    if (!shareCountry) return;
-    var url = CANONICAL_BASE + "/country/" + shareCountry.slug;
-    var title = shareCountry.label + " News — Today's Headlines on the News Map";
-    var text = countryShareText();
-    if (navigator.share) {
-      navigator.share({ title: title, text: text, url: url }).then(function () {
-        trackEvent("share_country", { method: "webshare", country: shareCountry.slug });
-      }, function () { /* dismissed — not a share */ });
-      return;
-    }
-    copyText(text).then(function () {
-      shareBtn.textContent = "✓ Copied";
-      setTimeout(function () { shareBtn.textContent = "↗ Share"; }, 2000);
-      trackEvent("share_country", { method: "clipboard", country: shareCountry.slug });
-    }, function () {
-      window.prompt("Copy this share text:", text);
-      trackEvent("share_country", { method: "prompt", country: shareCountry.slug });
-    });
-  });
-
   function relTime(iso) {
     if (!iso) return "";
     var t = new Date(iso).getTime();
@@ -888,8 +817,9 @@
   // 1) country label link, 2) source · relative time, 3) headline,
   // 4) 1–2 line summary, 5) read CTA. The per-card share pill (SMA-513/549)
   // and the post-click share nudge (SMA-602) are removed — organic shares
-  // stayed at zero while the UI cost vertical space on every card; sharing
-  // remains available at panel level (shareBtn, country views).
+  // stayed at zero while the UI cost vertical space on every card. The
+  // panel-level Share button was retired too in SMA-800 (zero uses in every
+  // window), so there is no share UI left.
   function storyCard(s, level) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
     var favicon = "";
@@ -933,8 +863,6 @@
     }
     storiesEl.innerHTML = html;
     trackEvent("stories_shown", { level: level, count: items.length });
-    // SMA-549: keep the current country-view items for the share composer.
-    shareItems = (level === "country") ? items : [];
     // SMA-689: the panel used to scrollIntoView on EVERY render at mobile
     // widths — including the boot world render, which scrolled the welcome
     // hook and the map off-screen before the visitor saw either. Scroll
@@ -965,7 +893,6 @@
     // starts with clickable headlines (SMA-366).
     panelTitle.textContent = "Top stories right now";
     panelMeta.textContent = "";
-    setShareCountry(null, null);
     setLoadingHint();
     fetch("/api/top-headlines?limit=15")
       .then(function (r) { return r.json(); })
@@ -1010,7 +937,6 @@
     markActive();
     trackEvent("select_continent", { continent: slug });
     setPath("/", { view: "continent", continent: slug });
-    setShareCountry(null, null);
     if (zoom) zoomTo(c.lon, c.lat, Z_REGION + 0.3);
     panelTitle.textContent = c.name;
     setLoadingHint();
@@ -1036,7 +962,6 @@
     markActive();
     trackEvent("select_region", { region: slug });
     setPath("/region/" + slug, { view: "region", continent: contSlug, region: slug });
-    setShareCountry(null, null);
     if (zoom && r.lat != null) zoomTo(r.lon, r.lat, Z_COUNTRY + 0.3);
     panelTitle.textContent = r.name;
     setLoadingHint();
@@ -1063,7 +988,6 @@
     markActive();
     trackEvent("select_country", { country: admin });
     setPath("/country/" + countrySlug(admin), { view: "country", country: admin });
-    setShareCountry(f.country.label, admin);
     if (zoom && f.country.lat != null) zoomTo(f.country.lon, f.country.lat, Math.max(d3.zoomTransform(svg.node()).k, 5));
     var ct = f.country;
     setLoadingHint();
