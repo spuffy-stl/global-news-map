@@ -4,6 +4,7 @@ Headlines are tagged with the full taxonomy: continent > region > country
 (ADMIN name). Migrated from the old single `region` column (which held the
 six continent slugs) in SMA-360.
 """
+import hashlib
 import math
 import os
 import sqlite3
@@ -73,6 +74,34 @@ CREATE TABLE IF NOT EXISTS failed_searches (
     count INTEGER NOT NULL DEFAULT 0,
     first_seen TEXT,
     last_seen TEXT
+);
+"""
+
+# SMA-829: lazy headline translations, stored next to the originals in this
+# database. Keyed by a hash of the original title (not the row id), so a
+# headline shared by several countries' feeds — or re-inserted after a
+# prune — is translated once per language, ever. source_languages memoises
+# each outlet's detected language so, e.g., English outlets are never sent
+# to the provider for English readers. translation_usage is the monthly
+# character counter behind the spend ceiling. No visitor data in any table.
+TRANSLATION_SCHEMA = """
+CREATE TABLE IF NOT EXISTS headline_translations (
+    title_hash TEXT NOT NULL,
+    lang TEXT NOT NULL,
+    translated TEXT NOT NULL,
+    source_lang TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (title_hash, lang)
+);
+CREATE TABLE IF NOT EXISTS source_languages (
+    source TEXT PRIMARY KEY,
+    lang TEXT NOT NULL,
+    agree INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE IF NOT EXISTS translation_usage (
+    month TEXT PRIMARY KEY,
+    chars INTEGER NOT NULL DEFAULT 0,
+    calls INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -177,6 +206,7 @@ def init_db():
             conn.executescript(INDEXES)
             conn.executescript(FEED_HEALTH_SCHEMA)
             conn.executescript(FAILED_SEARCH_SCHEMA)
+            conn.executescript(TRANSLATION_SCHEMA)
             conn.commit()
         finally:
             conn.close()
@@ -690,6 +720,143 @@ def get_failed_searches(limit=20):
                 (limit,),
             )
             return [dict(r) for r in cur.fetchall()]
+        finally:
+            conn.close()
+
+
+# --- Headline translations (SMA-829) ----------------------------------------
+
+def title_hash(title):
+    return hashlib.sha1((title or "").encode("utf-8")).hexdigest()
+
+
+def get_translations(hashes, lang):
+    """title_hash -> (translated, source_lang) for the cached subset."""
+    hashes = list(set(hashes))
+    if not hashes:
+        return {}
+    with _lock:
+        conn = _connect()
+        try:
+            marks = ",".join("?" * len(hashes))
+            cur = conn.execute(
+                "SELECT title_hash, translated, source_lang FROM headline_translations"
+                " WHERE lang = ? AND title_hash IN ({})".format(marks),
+                [lang, *hashes],
+            )
+            return {r["title_hash"]: (r["translated"], r["source_lang"]) for r in cur}
+        finally:
+            conn.close()
+
+
+def put_translations(rows, lang):
+    """rows: [(title_hash, translated, source_lang)]. First write wins."""
+    if not rows:
+        return
+    now = utcnow_iso()
+    with _lock:
+        conn = _connect()
+        try:
+            conn.executemany(
+                "INSERT OR IGNORE INTO headline_translations"
+                " (title_hash, lang, translated, source_lang, created_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                [(h, lang, t, s, now) for h, t, s in rows],
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_source_languages(sources):
+    """source name -> (lang, agree) for outlets with a detected language."""
+    sources = [s for s in set(sources) if s]
+    if not sources:
+        return {}
+    with _lock:
+        conn = _connect()
+        try:
+            marks = ",".join("?" * len(sources))
+            cur = conn.execute(
+                "SELECT source, lang, agree FROM source_languages"
+                " WHERE source IN ({})".format(marks),
+                sources,
+            )
+            return {r["source"]: (r["lang"], r["agree"]) for r in cur}
+        finally:
+            conn.close()
+
+
+def record_source_languages(detections):
+    """detections: [(source, detected_lang)]. A run of agreeing detections
+    builds confidence; a disagreeing one resets it."""
+    detections = [(s, l) for s, l in detections if s and l]
+    if not detections:
+        return
+    with _lock:
+        conn = _connect()
+        try:
+            for source, lang in detections:
+                conn.execute(
+                    """INSERT INTO source_languages (source, lang, agree)
+                       VALUES (?, ?, 1)
+                       ON CONFLICT(source) DO UPDATE SET
+                           agree = CASE WHEN source_languages.lang = excluded.lang
+                                        THEN source_languages.agree + 1 ELSE 1 END,
+                           lang = excluded.lang""",
+                    (source, lang),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def get_translation_usage(month):
+    with _lock:
+        conn = _connect()
+        try:
+            r = conn.execute(
+                "SELECT chars, calls FROM translation_usage WHERE month = ?", (month,)
+            ).fetchone()
+            return {"month": month, "chars": r["chars"] if r else 0,
+                    "calls": r["calls"] if r else 0}
+        finally:
+            conn.close()
+
+
+def add_translation_usage(month, chars):
+    with _lock:
+        conn = _connect()
+        try:
+            conn.execute(
+                """INSERT INTO translation_usage (month, chars, calls) VALUES (?, ?, 1)
+                   ON CONFLICT(month) DO UPDATE SET
+                       chars = chars + excluded.chars, calls = calls + 1""",
+                (month, chars),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def prune_translations():
+    """Drop cached translations whose original title is no longer stored
+    (pruned/purged headlines), so the cache stays bounded by the headline
+    table. Returns rows deleted."""
+    with _lock:
+        conn = _connect()
+        try:
+            live = {title_hash(r["title"]) for r in conn.execute("SELECT title FROM headlines")}
+            stale = [
+                (r["title_hash"],)
+                for r in conn.execute("SELECT DISTINCT title_hash FROM headline_translations")
+                if r["title_hash"] not in live
+            ]
+            conn.executemany(
+                "DELETE FROM headline_translations WHERE title_hash = ?", stale
+            )
+            conn.commit()
+            return len(stale)
         finally:
             conn.close()
 

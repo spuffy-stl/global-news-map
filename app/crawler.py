@@ -173,6 +173,14 @@ def crawl_all(continents=None):
         log.exception("feed health prune failed")
     for country in touched:
         db.prune_country(country)
+    if config.TRANSLATION_ENABLED:
+        # SMA-829: keep the translation cache bounded by the headline table.
+        try:
+            dropped = db.prune_translations()
+            if dropped:
+                log.info("pruned %d cached translations of removed headlines", dropped)
+        except Exception:
+            log.exception("translation cache prune failed")
     purged = db.purge_unknown_continents({c["slug"] for c in config.CONTINENTS})
     if purged:
         log.info("purged %d headlines with retired continent slugs", purged)

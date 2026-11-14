@@ -103,6 +103,10 @@ Environment variables:
 | `DATA_DIR` | `<repo>/data` | Directory for the SQLite database |
 | `CRAWL_HOUR_UTC` / `CRAWL_MINUTE_UTC` | `13` / `0` | Crawl anchor time in UTC, repeated every 6 hours |
 | `GA_MEASUREMENT_ID` | *(empty)* | Google Analytics 4 measurement ID (e.g. `G-XXXXXXXXXX`). When set, the GA4 `gtag.js` snippet is injected into the page and these events are tracked: `select_region` (with `region`), `click_story` (with `region` and `source`), `refresh_headlines`. When empty, no analytics code is loaded at all. |
+| `TRANSLATION_ENABLED` | *(off)* | SMA-829 visitor-language UI + lazy headline translation (`app/i18n.py`). Off = English UI, original headlines, no provider calls. In production the translation vars live in the host-only `/opt/news-translation.env` (see `deploy/deploy.sh`). |
+| `TRANSLATION_PROVIDER` | `azure` | `azure`, `google`, or `dev` (offline stub for local testing: no network, prefixes `[<lang>] `). |
+| `AZURE_TRANSLATOR_KEY` / `AZURE_TRANSLATOR_REGION` / `GOOGLE_TRANSLATE_API_KEY` | *(empty)* | Provider credentials. A missing key fails closed (originals served). |
+| `TRANSLATION_MONTHLY_CHAR_BUDGET` | `2000000` | Hard monthly ceiling on characters sent to the provider; once reached, originals are served until the UTC month rolls over. Month-to-date usage shows in `/api/status` → `translation`. |
 
 ## Run with Docker
 
