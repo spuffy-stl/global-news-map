@@ -313,7 +313,6 @@ body {
 .panel-head { display: flex; justify-content: space-between; align-items: center; }
 .panel-head h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.01em; }
 .panel-actions { display: flex; gap: 8px; align-items: center; }
-#shareBtn.hidden { display: none; }
 .panel-meta { font-size: 12.5px; color: var(--muted); margin: 7px 0 14px; letter-spacing: 0.01em; }
 /* SMA-687: server-rendered answer-summary at the top of the panel. */
 #stories .answer-summary { font-size: 13.5px; line-height: 1.55; color: var(--muted); border-bottom: 1px solid rgba(120, 170, 255, 0.13); padding-bottom: 10px; margin-bottom: 12px; }

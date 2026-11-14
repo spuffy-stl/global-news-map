@@ -1,0 +1,7 @@
+You are implementing Linear issue SMA-800 in the Global News Map repo.
+
+Read the full brief first: /home/hatch/workspace/global-news-map-service/run-logs/sma800-share-retire/brief.md
+
+Execute it exactly: retire the unused share UI, verify locally (syntax checks, grep, uvicorn + curl), commit on the current branch cc/sma800-share-retire, push, and open a PR to main with `gh pr create`. Stop after the PR opens. Do not merge.
+
+Work only inside this worktree (/home/hatch/workspace/global-news-map-service-wt-sma800-share-retire). Do not touch other worktrees or repos. If any step fails, report exactly what failed and stop.
