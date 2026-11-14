@@ -1,0 +1,33 @@
+monitor start 2026-11-13T14:23:12Z watching PID 4201
+CC session PID 4201 exited after ~2 min
+--- worktree status ---
+--- recent commits ---
+0fef621 SMA-800: retire unused share UI (panel Share button, 0 uses in every window)
+6c689bd SMA-822: replace dead Daily Monitor feed for Uganda with The Observer; drop frozen ADIAC feed
+f136cf0 SMA-816: anonymous per-session engagement log + /api/analytics/sessions report
+a026b32 SMA-810: serve /llms-full.txt with top 3 fresh headlines per country
+0e91068 SMA-701: add Iran International feed for Iran
+--- PRs for branch ---
+88	SMA-800: retire unused share UI	cc/sma800-share-retire	OPEN	2026-11-13T14:23:54Z
+--- claude.log tail ---
+I removed the unused Share button and its code, and opened PR #88 to `main`. It is not merged. Everything ran inside this worktree.
+
+**PR:** https://github.com/spuffy-stl/global-news-map/pull/88
+**Commit:** `0fef621` on `cc/sma800-share-retire` (pushed)
+
+**What changed** (4 files, 82 lines removed, 4 added):
+- **`app/static/index.html`:** removed the `#shareBtn` button. The close button (`panelClose`) is still there.
+- **`app/static/app.js`:**
+  - Removed the button lookup and the whole share block (`CANONICAL_BASE`, `shareCountry`, `shareItems`, `setShareCountry`, `copyText`, `countryShareText` and the click handler).
+  - Removed the `shareItems` assignment in `renderStories` and all four `setShareCountry(...)` calls.
+  - Updated the SMA-690 comment to say the panel share UI was retired in SMA-800.
+- **`app/static/style.css`:** removed the `#shareBtn.hidden` rule.
+- **`analytics/ga_report.py`:** dropped `share_country` from EVENTS and added a one-line SMA-800 note.
+- **Not touched, as the brief said:** `app/sessions.py`, `analytics/sessions_report.py` and the `app/main.py` llms.txt copy.
+
+**Checks run locally:**
+- **Syntax:** `node --check app/static/app.js` and `py_compile` on `ga_report.py` both pass.
+- **Grep:** a search for all removed identifiers, including `shareCountry`, `CANONICAL_BASE` and `copyText`, only finds the intended leftovers: the `share_country` entries in `sessions.py` and `sessions_report.py`, and the new SMA-800 note.
+- **Running app:** I started it with uvicorn on port 8765. `/`, `/country/kenya`, `/static/app.js` and `/static/style.css` all returned 200, none contained any share identifiers, and the close button is still served. I stopped the server afterwards and the worktree was clean apart from the 4 edits.
+
+uvicorn isn't installed for the system `python3`, so I ran the worktree's code with the main checkout's virtual environment (`global-news-map-service/.venv/bin/python`). I only used it, I didn't change anything there.

@@ -140,3 +140,23 @@ USER_AGENT = os.environ.get(
 # Google Analytics 4 measurement ID, e.g. "G-XXXXXXXXXX".
 # When empty, no analytics snippet is injected and the page stays fully self-contained.
 GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID", "").strip()
+
+# SMA-829: visitor-language UI + lazy headline translation. DEFAULT OFF —
+# with the flag off the site renders exactly as before (English UI,
+# original-language headlines) and no translation provider is ever called.
+# All translation spend sits behind this flag (see app/i18n.py).
+TRANSLATION_ENABLED = os.environ.get("TRANSLATION_ENABLED", "").strip().lower() in (
+    "1", "true", "yes", "on",
+)
+# "azure" (recommended, cheapest), "google", or "dev" (offline stub for
+# local testing only — never spends, prefixes "[<lang>] ").
+TRANSLATION_PROVIDER = os.environ.get("TRANSLATION_PROVIDER", "azure").strip().lower()
+AZURE_TRANSLATOR_KEY = os.environ.get("AZURE_TRANSLATOR_KEY", "").strip()
+AZURE_TRANSLATOR_REGION = os.environ.get("AZURE_TRANSLATOR_REGION", "").strip()
+GOOGLE_TRANSLATE_API_KEY = os.environ.get("GOOGLE_TRANSLATE_API_KEY", "").strip()
+# Hard spend ceiling: characters sent to the provider per calendar month
+# (UTC). Once reached, untranslated headlines are served in the original
+# language until the month rolls over. 2M = Azure F0's free allowance.
+TRANSLATION_MONTHLY_CHAR_BUDGET = int(
+    os.environ.get("TRANSLATION_MONTHLY_CHAR_BUDGET", "2000000")
+)

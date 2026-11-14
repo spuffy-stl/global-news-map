@@ -16,7 +16,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import config, crawler, db, sessions
+from . import config, crawler, db, i18n, sessions
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("global-news-map")
@@ -149,7 +149,7 @@ def _story_card(it):
     )
 
 
-def _rel_time(iso):
+def _rel_time(iso, lang=i18n.DEFAULT_LANG):
     """'3h ago' — mirror of relTime() in app.js for server-rendered cards."""
     if not iso:
         return ""
@@ -161,26 +161,40 @@ def _rel_time(iso):
         t = t.replace(tzinfo=timezone.utc)
     s = max(0.0, (datetime.now(timezone.utc) - t).total_seconds())
     if s < 60:
-        return "just now"
+        return i18n.t(lang, "just_now")
     if s < 3600:
-        return f"{int(s // 60)}m ago"
+        return i18n.t(lang, "m_ago", n=int(s // 60))
     if s < 86400:
-        return f"{int(s // 3600)}h ago"
-    return f"{int(s // 86400)}d ago"
+        return i18n.t(lang, "h_ago", n=int(s // 3600))
+    return i18n.t(lang, "d_ago", n=int(s // 86400))
 
 
-def _panel_card(it, level):
+def _orig_title_html(it, lang):
+    """SMA-829: for a translated headline, the original title (always
+    retrievable — shown under the translation, and as the link tooltip).
+    Mirrored by origTitleHTML() in app.js."""
+    return (
+        f'<p class="orig-title" lang="{html.escape(it.get("title_lang") or "", quote=True)}">'
+        f'<span class="orig-label">{html.escape(i18n.t(lang, "original"))}:</span> '
+        f'{html.escape(it.get("title") or "")}</p>'
+    )
+
+
+def _panel_card(it, level, lang=i18n.DEFAULT_LANG):
     """Server-rendered twin of storyCard() in app.js (SMA-687): same
     structure and classes, so the panel's first paint (this markup, inside
     #stories) is visually identical to what renderStories() swaps in after
     the first fetch. level is 'world' | 'continent' | 'region' | 'country';
-    the country label link is omitted on country pages (SMA-690 anatomy)."""
-    title = html.escape(it.get("title") or "")
+    the country label link is omitted on country pages (SMA-690 anatomy).
+    SMA-829: a translated headline (title_translated, see i18n.localize)
+    renders in the visitor's language with the original beneath it."""
+    translated = it.get("title_translated")
+    title = html.escape(translated or it.get("title") or "")
     raw_url = it.get("url") or "#"
     url = html.escape(raw_url, quote=True)
     source = html.escape(it.get("source") or "")
     country = it.get("country") or ""
-    when = _rel_time(it.get("published_at") or it.get("fetched_at"))
+    when = _rel_time(it.get("published_at") or it.get("fetched_at"), lang)
     favicon = ""
     try:
         host = urlparse(raw_url).hostname or ""
@@ -202,16 +216,24 @@ def _panel_card(it, level):
     summary_html = ""
     if it.get("summary"):
         summary_html = f"<p>{html.escape(it.get('summary') or '')}</p>"
-    cta_source = f" at {source}" if source else ""
+    cta = i18n.t(lang, "read_full_at", source=source) if source else i18n.t(lang, "read_full")
+    title_attr = orig_html = ""
+    if translated:
+        title_attr = (
+            f' title="{html.escape(i18n.t(lang, "original"), quote=True)}: '
+            f'{html.escape(it.get("title") or "", quote=True)}"'
+        )
+        orig_html = _orig_title_html(it, lang)
     return (
         f'<article class="story" data-source="{html.escape(it.get("source") or "", quote=True)}">'
         f'<div class="meta">{country_link}'
         f'<span class="story-source">{source}</span>'
         f"<span>{when}</span></div>"
-        f'<h3>{favicon}<a href="{url}" target="_blank" rel="noopener">{title}</a></h3>'
+        f'<h3>{favicon}<a href="{url}" target="_blank" rel="noopener"{title_attr}>{title}</a></h3>'
+        f"{orig_html}"
         f"{summary_html}"
         f'<div class="story-cta"><a href="{url}" target="_blank" rel="noopener">'
-        f"Read the full story{cta_source} →</a></div>"
+        f"{cta} →</a></div>"
         "</article>"
     )
 
@@ -329,9 +351,96 @@ def ga4_snippet(measurement_id):
     )
 
 
+def _request_lang(request):
+    """SMA-829: the visitor's language for this request (always "en" with
+    translation off). Derived per request; never stored or logged."""
+    return i18n.detect_lang(request.headers, request.cookies)
+
+
+def _api_lang(lang):
+    """Normalised ?lang= for the JSON APIs, or None when translation is
+    off / the language is unsupported (the response is then unchanged)."""
+    lang = i18n.normalize(lang)
+    return lang if lang and i18n.is_active(lang) else None
+
+
+def _html(page, lang):
+    """HTMLResponse; with translation on, the page varies by the inputs
+    detect_lang() reads, so shared caches must key on them."""
+    if not config.TRANSLATION_ENABLED:
+        return HTMLResponse(page)
+    return HTMLResponse(page, headers={
+        "Vary": "Accept-Language, Cookie, CF-IPCountry",
+        "Content-Language": lang,
+    })
+
+
+def _lang_switcher(lang, pref):
+    """Manual language switcher (SMA-829). The choice persists in the
+    gnm_lang preference cookie (set by app.js); "Auto" clears it."""
+    opts = [
+        f'<option value=""{" selected" if not pref else ""}>'
+        f'{html.escape(i18n.t(lang, "lang_auto"))}</option>'
+    ]
+    for code, name in i18n.LANGUAGES.items():
+        sel = " selected" if code == pref else ""
+        opts.append(f'<option value="{code}" lang="{code}"{sel}>{html.escape(name)}</option>')
+    label = html.escape(i18n.t(lang, "language"), quote=True)
+    return (
+        f'<select id="langSelect" class="lang-select" aria-label="{label}" title="{label}">'
+        + "".join(opts) + "</select>\n    "
+    )
+
+
+def _localize_shell(page, lang, pref):
+    """Swap index.html's English chrome for lang and inject the client's
+    string table + the switcher. Only called with translation on."""
+    T = lambda key, **kw: i18n.t(lang, key, **kw)
+    if lang != i18n.DEFAULT_LANG:
+        dir_attr = ' dir="rtl"' if lang in i18n.RTL else ""
+        n = str(COUNTRY_COUNT)
+        for old, new in [
+            ('<html lang="en">', f'<html lang="{lang}"{dir_attr}>'),
+            (f'placeholder="🔍 Search {n} countries… ( / )"',
+             'placeholder="' + html.escape(T("search_ph", n=n), quote=True) + '"'),
+            ('class="updated">loading…</span>',
+             'class="updated">' + html.escape(T("loading")) + "</span>"),
+            ("<p><strong>See what the world is reading today.</strong> Tap a glowing marker "
+             f"to read headlines from local outlets in {n} countries.</p>",
+             "<p><strong>" + html.escape(T("hook_title")) + "</strong> "
+             + html.escape(T("hook_body", n=n)) + "</p>"),
+            (">🌍 Take me to a trending country</button>",
+             ">" + html.escape(T("hook_explore")) + "</button>"),
+            (">🔍 Find a country</button>", ">" + html.escape(T("hook_search")) + "</button>"),
+            (">Tip: scroll or pinch to zoom — regions appear, then country-level stories.</p>",
+             ">" + html.escape(T("zoom_tip")) + "</p>"),
+            ('<h2 id="panelTitle">Top stories</h2>',
+             '<h2 id="panelTitle">' + html.escape(T("top_stories")) + "</h2>"),
+            (">↗ Share</button>", ">" + html.escape(T("share")) + "</button>"),
+            ('<p class="hint">Select a region on the map to see its top headlines.</p>',
+             '<p class="hint">' + html.escape(T("select_hint")) + "</p>"),
+        ]:
+            page = page.replace(old, new, 1)
+    boot = {"lang": lang, "strings": i18n.strings(lang)}
+    page = page.replace(
+        '<script src="/static/vendor/d3.min.js">',
+        "<script>window.GNM_I18N=" + json.dumps(boot, ensure_ascii=False).replace("</", "<\\/")
+        + ";</script>\n"
+        '<script src="/static/vendor/d3.min.js">',
+        1,
+    )
+    page = page.replace(
+        '<span id="updated" class="updated">',
+        _lang_switcher(lang, pref) + '<span id="updated" class="updated">',
+        1,
+    )
+    return page
+
+
 def _app_page(title=None, description=None, canonical_path="/",
               initial_country=None, initial_region=None, body_prefix="", head_extra="",
-              body_suffix="", panel_title=None, panel_meta=None, stories_html=None):
+              body_suffix="", panel_title=None, panel_meta=None, stories_html=None,
+              lang=i18n.DEFAULT_LANG, lang_pref=None):
     """Render the interactive app shell with per-page head tags (SMA-380,
     SMA-399). When initial_country (an ADMIN name) is given, the client boots
     straight into that country view; initial_region (a (cont_slug, region_slug)
@@ -419,6 +528,8 @@ def _app_page(title=None, description=None, canonical_path="/",
         page = page.replace("<body>", "<body>\n" + body_prefix, 1)
     if body_suffix:
         page = page.replace("</body>", body_suffix + "\n</body>", 1)
+    if config.TRANSLATION_ENABLED:
+        page = _localize_shell(page, lang, i18n.normalize(lang_pref))
     return page
 
 
@@ -457,7 +568,7 @@ def _popular_countries_footer(n=20):
 
 
 @app.get("/")
-def index():
+def index(request: Request):
     # SMA-665: the homepage was a pure JS shell (6,851 bytes, zero story
     # content) while country pages server-render their headlines (SMA-399).
     # SMA-687: that SSR lived inside <noscript>, which Googlebot largely
@@ -465,11 +576,14 @@ def index():
     # render as real markup inside #stories (see _app_page), identical in
     # structure to the client cards; renderStories() replaces them on the
     # first fetch, and setLoadingHint() keeps them on screen until then.
+    lang = _request_lang(request)
     try:
         items = db.get_top_headlines(15)
     except Exception:
         items = []
-    cards = "\n".join(_panel_card(it, "world") for it in items) or (
+    cards = "\n".join(
+        _panel_card(it, "world", lang) for it in i18n.localize(items, lang)
+    ) or (
         "<p>No headlines yet — the latest crawl is still running.</p>"
     )
     today = datetime.now(timezone.utc).strftime("%B %-d, %Y")
@@ -491,15 +605,19 @@ def index():
     )
     panel_meta = ""
     if items:
-        panel_meta = "newest " + _rel_time(items[0].get("published_at") or items[0].get("fetched_at"))
-    return HTMLResponse(
+        panel_meta = i18n.t(lang, "newest", t=_rel_time(
+            items[0].get("published_at") or items[0].get("fetched_at"), lang))
+    return _html(
         _app_page(
             body_suffix=_popular_countries_footer(),
             head_extra=_newsarticle_jsonld(items),
-            panel_title="Top stories right now",
+            panel_title=i18n.t(lang, "top_now"),
             panel_meta=panel_meta,
             stories_html=stories_html,
-        )
+            lang=lang,
+            lang_pref=request.cookies.get(i18n.COOKIE_NAME),
+        ),
+        lang,
     )
 
 
@@ -856,7 +974,7 @@ def _region_summary(region_name, n_countries, n_sources, source_word, items, upd
 
 
 @app.get("/country/{slug}")
-def country_page(slug: str):
+def country_page(slug: str, request: Request):
     """Shareable deep link per country (SMA-399): the interactive app shell
     with per-country <title>/meta/OG tags, server-rendered headlines as real
     markup inside the story panel (SMA-687 — previously a <noscript> block),
@@ -878,8 +996,11 @@ def country_page(slug: str):
         f"Today's top headlines from {n_sources} local news {source_word} in {label}, "
         "updated every 6 hours by the Global News Map."
     )
+    lang = _request_lang(request)
     items = db.get_headlines("country", admin, 15)
-    cards = "\n".join(_panel_card(it, "country") for it in items) or (
+    cards = "\n".join(
+        _panel_card(it, "country", lang) for it in i18n.localize(items, lang)
+    ) or (
         f"<p>No fresh headlines for {html.escape(label)} right now — its local feeds have not published recently.</p>"
     )
     # SMA-687: summary + cards are real markup inside #stories (previously
@@ -897,7 +1018,7 @@ def country_page(slug: str):
     if not items:
         head_extra += '\n<meta name="robots" content="noindex">'
     _cont, _region = _SLUG_TO_PLACE[slug]
-    return HTMLResponse(
+    return _html(
         _app_page(
             title=title,
             description=description,
@@ -906,9 +1027,12 @@ def country_page(slug: str):
             body_prefix=nav,
             head_extra=head_extra,
             panel_title=label,
-            panel_meta=f"{len(items)} stories · {_region.get('name') or _region['slug']}",
+            panel_meta=f"{i18n.t(lang, 'stories', n=len(items))} · {_region.get('name') or _region['slug']}",
             stories_html=stories_html,
-        )
+            lang=lang,
+            lang_pref=request.cookies.get(i18n.COOKIE_NAME),
+        ),
+        lang,
     )
 
 
@@ -955,7 +1079,7 @@ def _region_nav(cont, region):
 
 
 @app.get("/region/{slug}")
-def region_page(slug: str):
+def region_page(slug: str, request: Request):
     """Shareable deep link per region (SMA-511): same pattern as the
     /country/<slug> pages (SMA-399) — the interactive app shell with
     per-region <title>/meta/OG tags, a <noscript> server-rendered headline
@@ -978,8 +1102,11 @@ def region_page(slug: str):
         f"Today's top headlines from {n_sources} local news {source_word} "
         f"across {n_countries} countries in {region_name}, updated every 6 hours by the Global News Map."
     )
+    lang = _request_lang(request)
     items = db.get_headlines("region", slug, 15)
-    cards = "\n".join(_panel_card(it, "region") for it in items) or (
+    cards = "\n".join(
+        _panel_card(it, "region", lang) for it in i18n.localize(items, lang)
+    ) or (
         f"<p>No fresh headlines for {html.escape(region_name)} right now — local feeds across the region have not published recently.</p>"
     )
     # SMA-687: summary + cards as real markup inside #stories (previously
@@ -995,7 +1122,7 @@ def region_page(slug: str):
     head_extra = _newsarticle_jsonld(items, updated)
     if not items:
         head_extra += '\n<meta name="robots" content="noindex">'
-    return HTMLResponse(
+    return _html(
         _app_page(
             title=title,
             description=description,
@@ -1005,11 +1132,14 @@ def region_page(slug: str):
             head_extra=head_extra,
             panel_title=region_name,
             panel_meta=(
-                f"{len(items)} stories · {n_countries} "
+                f"{i18n.t(lang, 'stories', n=len(items))} · {n_countries} "
                 f"{'country' if n_countries == 1 else 'countries'}"
             ),
             stories_html=stories_html,
-        )
+            lang=lang,
+            lang_pref=request.cookies.get(i18n.COOKIE_NAME),
+        ),
+        lang,
     )
 
 
@@ -1058,8 +1188,10 @@ a {{ color: #0b5fff; }}
 
 
 @app.get("/api/hierarchy")
-def get_hierarchy():
-    """Continent > region > country taxonomy with map positions and story counts."""
+def get_hierarchy(lang: str = Query(None)):
+    """Continent > region > country taxonomy with map positions and story counts.
+    SMA-829: ?lang= localizes continent names (translation on only)."""
+    lang = _api_lang(lang)
     counts = db.get_country_counts()
     continents = []
     for cont in config.CONTINENTS:
@@ -1092,7 +1224,10 @@ def get_hierarchy():
         continents.append(
             {
                 "slug": cont["slug"],
-                "name": cont["name"],
+                "name": (
+                    i18n.STRINGS.get(lang, {}).get("cont." + cont["slug"], cont["name"])
+                    if lang else cont["name"]
+                ),
                 "lat": cont["lat"],
                 "lon": cont["lon"],
                 "regions": regions,
@@ -1107,9 +1242,17 @@ def get_headlines(
     region: str = Query(None),
     country: str = Query(None),
     limit: int = Query(12, ge=1, le=50),
+    lang: str = Query(None),
 ):
     """Headlines at any taxonomy level. `region` also accepts a continent slug
-    (backwards compatibility with pre-SMA-360 clients)."""
+    (backwards compatibility with pre-SMA-360 clients). SMA-829: ?lang= adds
+    title_translated/title_lang (translation on only; `title` stays original)."""
+    items = _headlines_for(continent, region, country, limit)
+    lang = _api_lang(lang)
+    return i18n.localize(items, lang) if lang else items
+
+
+def _headlines_for(continent, region, country, limit):
     if country:
         return db.get_headlines("country", country, limit)
     if region:
@@ -1124,9 +1267,11 @@ def get_headlines(
 
 
 @app.get("/api/top-headlines")
-def get_top_headlines(limit: int = Query(15, ge=1, le=50)):
+def get_top_headlines(limit: int = Query(15, ge=1, le=50), lang: str = Query(None)):
     """Most recent headlines across all continents (world view / first-visit hook)."""
-    return db.get_top_headlines(limit)
+    items = db.get_top_headlines(limit)
+    lang = _api_lang(lang)
+    return i18n.localize(items, lang) if lang else items
 
 
 def is_url_like(q: str) -> bool:
@@ -1144,7 +1289,8 @@ def is_url_like(q: str) -> bool:
 
 
 @app.get("/api/search")
-def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)):
+def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20),
+           lang: str = Query(None)):
     """SMA-691: headline topic search behind the search box's Stories
     group. Short/blank queries return nothing (place search is
     client-side)."""
@@ -1158,13 +1304,18 @@ def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)
         # SMA-795: URL-like queries are excluded — they are pastes, not
         # failed terms, and would pollute the aggregate.
         db.record_failed_search(q)
-    return results
+    lang = _api_lang(lang)
+    return i18n.localize(results, lang) if lang else results
 
 
 @app.get("/api/status")
 def get_status():
     st = db.get_status()
     health = db.get_feed_health()
+    extra = {}
+    if config.TRANSLATION_ENABLED:
+        # SMA-829: month-to-date provider characters vs the spend ceiling.
+        extra["translation"] = i18n.usage()
     return {
         "continents": st["continents"],
         "total_count": st["total_count"],
@@ -1198,6 +1349,7 @@ def get_status():
             ),
             "feeds": health,
         },
+        **extra,
     }
 
 

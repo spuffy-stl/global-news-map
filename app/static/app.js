@@ -34,6 +34,34 @@
   var hookDismiss = document.getElementById("hookDismiss");
   var hookTeaser = document.getElementById("hookTeaser");
 
+  // SMA-829: visitor-language UI. The server injects window.GNM_I18N
+  // ({lang, strings}) only when translation is enabled; without it tr()
+  // (tr) returns the English fallback literal and API URLs are unchanged, so
+  // the flag-off page behaves exactly as before.
+  var I18N = window.GNM_I18N || null;
+  function tr(key, fallback, vars) {
+    var s = (I18N && I18N.strings && I18N.strings[key]) || fallback;
+    if (vars) {
+      Object.keys(vars).forEach(function (k) { s = s.split("{" + k + "}").join(String(vars[k])); });
+    }
+    return s;
+  }
+  // Appended to headline/hierarchy API URLs so the server localizes them.
+  var LANG_QS = I18N ? "&lang=" + encodeURIComponent(I18N.lang) : "";
+  // Manual switcher: the choice persists in a preference cookie (a language
+  // code, not an identifier); "Auto" clears it and falls back to the
+  // browser language. Reload so server-rendered chrome follows.
+  var langSelect = document.getElementById("langSelect");
+  if (langSelect) {
+    langSelect.addEventListener("change", function () {
+      var v = langSelect.value;
+      document.cookie = v
+        ? "gnm_lang=" + encodeURIComponent(v) + "; path=/; max-age=31536000; SameSite=Lax"
+        : "gnm_lang=; path=/; max-age=0; SameSite=Lax";
+      window.location.reload();
+    });
+  }
+
   // Returning-visitor hook (SMA-381): show "N new since your last visit" on the
   // world view so repeat visitors see the daily crawl is producing fresh value.
   // SMA-497: measurability for the return hook. A returning visitor is anyone
@@ -137,7 +165,8 @@
       var s = worldTopItems[i];
       if (s.country && s.title && findCountry(s.country)) {
         hookPick = s.country;
-        var t = s.title.length > 120 ? s.title.slice(0, 117) + "…" : s.title;
+        var title = s.title_translated || s.title;
+        var t = title.length > 120 ? title.slice(0, 117) + "…" : title;
         // SMA-649: the teaser headline itself is the click target. Tracking
         // verified working (headless clicks fire hook_explore on both the
         // late and queued-early paths), yet hook_explore stayed 0 against
@@ -483,10 +512,10 @@
     var t = new Date(iso).getTime();
     if (isNaN(t)) return "";
     var s = Math.max(0, (Date.now() - t) / 1000);
-    if (s < 60) return "just now";
-    if (s < 3600) return Math.floor(s / 60) + "m ago";
-    if (s < 86400) return Math.floor(s / 3600) + "h ago";
-    return Math.floor(s / 86400) + "d ago";
+    if (s < 60) return tr("just_now", "just now");
+    if (s < 3600) return tr("m_ago", "{n}m ago", { n: Math.floor(s / 60) });
+    if (s < 86400) return tr("h_ago", "{n}h ago", { n: Math.floor(s / 3600) });
+    return tr("d_ago", "{n}d ago", { n: Math.floor(s / 86400) });
   }
 
   function findContinent(slug) {
@@ -820,6 +849,15 @@
   // stayed at zero while the UI cost vertical space on every card. The
   // panel-level Share button was retired too in SMA-800 (zero uses in every
   // window), so there is no share UI left.
+  // SMA-829: a translated headline keeps its original one click/glance
+  // away — beneath the translation and as the link tooltip. Mirrors
+  // _orig_title_html() in app/main.py.
+  function origTitleHTML(s) {
+    return '<p class="orig-title" lang="' + esc(s.title_lang || "") + '">' +
+      '<span class="orig-label">' + esc(tr("original", "Original")) + ":</span> " +
+      esc(s.title) + "</p>";
+  }
+
   function storyCard(s, level) {
     var pub = s.published_at ? relTime(s.published_at) : relTime(s.fetched_at);
     var favicon = "";
@@ -838,12 +876,16 @@
         '<div class="meta">' + countryLink +
         '<span class="story-source">' + esc(s.source || "") + "</span>" +
         "<span>" + esc(pub) + "</span></div>" +
-        '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.title) + "</a></h3>" +
+        '<h3>' + (isNewStory(s) ? '<span class="newdot" title="New since your last visit">NEW</span>' : "") + favicon + '<a href="' + esc(s.url) + '" target="_blank" rel="noopener"' +
+          (s.title_translated ? ' title="' + esc(tr("original", "Original") + ": " + s.title) + '"' : "") +
+          ">" + esc(s.title_translated || s.title) + "</a></h3>" +
+        (s.title_translated ? origTitleHTML(s) : "") +
         (s.summary ? "<p>" + esc(s.summary) + "</p>" : "") +
         // SMA-566 (content lever): explicit full-width CTA naming the
         // destination source.
-        '<div class="story-cta"><a href="' + esc(s.url) + '" target="_blank" rel="noopener">Read the full story' +
-        (s.source ? " at " + esc(s.source) : "") + " →</a></div>" +
+        '<div class="story-cta"><a href="' + esc(s.url) + '" target="_blank" rel="noopener">' +
+        (s.source ? tr("read_full_at", "Read the full story at {source}", { source: esc(s.source) })
+                  : tr("read_full", "Read the full story")) + " →</a></div>" +
       "</article>"
     );
   }
@@ -857,7 +899,7 @@
     panelMeta.textContent = meta;
     var html = extraHTML || "";
     if (!items.length) {
-      html += '<p class="hint">No headlines yet — the next crawl (every 6 hours) will pick this up.</p>';
+      html += '<p class="hint">' + esc(tr("no_headlines", "No headlines yet — the next crawl (every 6 hours) will pick this up.")) + "</p>";
     } else {
       html += items.map(function (s) { return storyCard(s, level); }).join("");
     }
@@ -875,7 +917,7 @@
   }
 
   function fetchHeadlines(params) {
-    return fetch("/api/headlines?" + params + "&limit=15").then(function (r) { return r.json(); });
+    return fetch("/api/headlines?" + params + "&limit=15" + LANG_QS).then(function (r) { return r.json(); });
   }
 
   // SMA-687: server-rendered stories (a [data-ssr] block inside #stories)
@@ -883,7 +925,7 @@
   // never flash a spinner over real content that shipped in the HTML.
   function setLoadingHint() {
     if (!storiesEl.querySelector("[data-ssr]")) {
-      storiesEl.innerHTML = '<p class="hint">Loading headlines…</p>';
+      storiesEl.innerHTML = '<p class="hint">' + esc(tr("loading_headlines", "Loading headlines…")) + "</p>";
     }
   }
 
@@ -891,22 +933,22 @@
     // First-visit hook: show the freshest stories immediately so a new visitor
     // sees value without having to click anything (SMA-367), and every visit
     // starts with clickable headlines (SMA-366).
-    panelTitle.textContent = "Top stories right now";
+    panelTitle.textContent = tr("top_now", "Top stories right now");
     panelMeta.textContent = "";
     setLoadingHint();
-    fetch("/api/top-headlines?limit=15")
+    fetch("/api/top-headlines?limit=15" + LANG_QS)
       .then(function (r) { return r.json(); })
       .then(function (items) {
-        var hint = '<p class="hint hook">Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.</p>';
+        var hint = '<p class="hint hook">' + esc(tr("world_hint", "Fresh from local outlets worldwide — click a continent or region on the map to drill into local coverage.")) + "</p>";
         worldTopItems = items; // SMA-600: trending pool for the hook CTA
         populateHookTeaser(); // SMA-618: no-op until the hierarchy is in
         updateFreshBadge(items);
-        renderStories("world", "Top stories right now",
-          items.length ? "newest " + relTime(items[0].published_at || items[0].fetched_at) : "",
+        renderStories("world", tr("top_now", "Top stories right now"),
+          items.length ? tr("newest", "newest {t}", { t: relTime(items[0].published_at || items[0].fetched_at) }) : "",
           items, hint);
       })
       .catch(function () {
-        storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
+        storiesEl.innerHTML = '<p class="hint">' + esc(tr("load_failed", "Could not load headlines. Please try again.")) + "</p>";
       });
   }
 
@@ -944,12 +986,13 @@
     fetchHeadlines("continent=" + encodeURIComponent(slug))
       .then(function (items) {
         renderStories("continent", c.name,
-          continentStories(c) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
+          tr("stories", "{n} stories", { n: continentStories(c) }) + " · " +
+            tr("newest", "newest {t}", { t: items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—" }),
           items, subDrillChipsHTML(c.regions, "region"));
         bindSubDrillChips(function (kind, key) { selectRegion(slug, key, true); });
       })
       .catch(function () {
-        storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
+        storiesEl.innerHTML = '<p class="hint">' + esc(tr("load_failed", "Could not load headlines. Please try again.")) + "</p>";
       });
   }
 
@@ -970,12 +1013,13 @@
       .then(function (items) {
         var drillCountries = (r.countries || []).filter(function (ct) { return ct.stories > 0; });
         renderStories("region", r.name,
-          regionStories(r) + " stories · newest " + (items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—"),
+          tr("stories", "{n} stories", { n: regionStories(r) }) + " · " +
+            tr("newest", "newest {t}", { t: items.length ? relTime(items[0].published_at || items[0].fetched_at) : "—" }),
           items, subDrillChipsHTML(drillCountries, "country"));
         bindSubDrillChips(function (kind, key) { selectCountry(key, true); });
       })
       .catch(function () {
-        storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
+        storiesEl.innerHTML = '<p class="hint">' + esc(tr("load_failed", "Could not load headlines. Please try again.")) + "</p>";
       });
   }
 
@@ -995,16 +1039,16 @@
     fetchHeadlines("country=" + encodeURIComponent(admin))
       .then(function (items) {
         var sources = (ct.sources || []).length
-          ? '<div class="sources"><span class="sources-label">Sources:</span> ' +
+          ? '<div class="sources"><span class="sources-label">' + esc(tr("sources", "Sources:")) + "</span> " +
             ct.sources.map(function (s) { return "<span class=\"source-tag\">" + esc(s) + "</span>"; }).join(" ") +
             "</div>"
           : "";
         renderStories("country", ct.label,
-          (ct.stories || items.length) + " stories · " + f.region.name,
+          tr("stories", "{n} stories", { n: ct.stories || items.length }) + " · " + f.region.name,
           items, sources);
       })
       .catch(function () {
-        storiesEl.innerHTML = '<p class="hint">Could not load headlines. Please try again.</p>';
+        storiesEl.innerHTML = '<p class="hint">' + esc(tr("load_failed", "Could not load headlines. Please try again.")) + "</p>";
       });
   }
 
@@ -1015,8 +1059,8 @@
         var total = st.total_count || 0;
         var latest = st.last_fetched;
         updatedEl.textContent = latest
-          ? "Updated " + relTime(latest) + " · " + total + " stories"
-          : "No stories yet";
+          ? tr("updated", "Updated {t} · {n} stories", { t: relTime(latest), n: total })
+          : tr("no_stories", "No stories yet");
         return latest;
       })
       .catch(function () { updatedEl.textContent = "status unavailable"; return null; });
@@ -1437,7 +1481,7 @@
   // the Promise.all below also landed (the boot chain SMA-589 decoupled
   // for the hook/headlines), so early visitors could not search at all.
   // The boot handler below re-sets the same data — this is idempotent.
-  fetch("/api/hierarchy").then(function (r) { return r.json(); })
+  fetch("/api/hierarchy" + (I18N ? "?lang=" + encodeURIComponent(I18N.lang) : "")).then(function (r) { return r.json(); })
     .then(function (d) {
       if (!continents.length) continents = d.continents;
       if (!searchIndex.length) { buildSearchIndex(); drawNav(); }
@@ -1445,7 +1489,7 @@
     .catch(function () { /* the boot Promise.all below retries */ });
 
   Promise.all([
-    fetch("/api/hierarchy").then(function (r) { return r.json(); }),
+    fetch("/api/hierarchy" + (I18N ? "?lang=" + encodeURIComponent(I18N.lang) : "")).then(function (r) { return r.json(); }),
     fetch("/static/data/countries-110m.geojson").then(function (r) { return r.json(); })
   ]).then(function (res) {
     continents = res[0].continents;

@@ -428,3 +428,16 @@ p.hint.hook {
 .popular-countries .pc-note { margin: 16px 0 0; font-size: 12.5px; color: var(--faint); }
 .popular-countries .pc-note a { color: var(--accent); text-decoration: none; }
 .popular-countries .pc-note a:hover { text-decoration: underline; }
+
+/* Visitor language (SMA-829) ------------------------------------------------
+   Only rendered when translation is enabled: the manual language switcher,
+   and the original headline shown beneath a machine-translated one. */
+.lang-select {
+  background: var(--card); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 4px 6px; font: inherit; font-size: 12.5px;
+}
+.story p.orig-title {
+  margin: -3px 0 8px; font-size: 12.5px; color: var(--faint);
+  -webkit-line-clamp: 2;
+}
+.story p.orig-title .orig-label { font-weight: 600; margin-right: 2px; }
