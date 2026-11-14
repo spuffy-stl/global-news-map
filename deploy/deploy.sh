@@ -11,10 +11,18 @@ docker network create newsnet 2>/dev/null || true
 
 # App: no public ports; reachable only via Caddy on the internal network.
 docker rm -f newsmap || true
+# SMA-829: translation settings (TRANSLATION_ENABLED, provider API key, ...)
+# live in an optional host-only env file so keys never touch the repo or
+# GitHub. No file = translation off (the default).
+TRANSLATION_ENV=()
+if [ -f /opt/news-translation.env ]; then
+  TRANSLATION_ENV=(--env-file /opt/news-translation.env)
+fi
 docker run -d --name newsmap --restart unless-stopped \
   --network newsnet \
   -v /opt/news-data:/srv/data \
   -e "GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}" \
+  ${TRANSLATION_ENV[@]+"${TRANSLATION_ENV[@]}"} \
   newsmap
 
 # Caddy: terminates TLS for globalnewsmap.net (Let's Encrypt, auto-renew)
