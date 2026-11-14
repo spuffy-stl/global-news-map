@@ -851,10 +851,10 @@ continents:
                 url: https://www.phnompenhpost.com/rss
           - name: Thailand
             sources:
-              - name: Thairath
-                url: https://www.thairath.co.th/rss/news
               - name: Bangkok Post
                 url: https://www.bangkokpost.com/rss/data/topstories.xml
+              - name: Thairath
+                url: https://www.thairath.co.th/rss/news
               - name: Khaosod English
                 url: https://www.khaosodenglish.com/feed/
           - name: Myanmar
