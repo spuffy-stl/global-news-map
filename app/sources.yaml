@@ -676,6 +676,8 @@ continents:
         countries:
           - name: Israel
             sources:
+              - name: Ynet
+                url: https://www.ynet.co.il/Integration/StoryRss2.xml
               - name: Jerusalem Post
                 url: https://www.jpost.com/rss/rssfeedsfrontpage.aspx
               - name: Times of Israel
@@ -684,26 +686,30 @@ continents:
                 url: https://www.israelnationalnews.com/Rss.aspx?act=.1
           - name: Palestine
             sources:
+              - name: Al-Quds
+                url: https://alquds.com/ar/feed
               - name: PNN
                 url: https://english.pnn.ps/feed
               - name: Wattan
                 url: https://www.wattan.net/rss
           - name: Lebanon
             sources:
-              - name: NNA
-                url: https://www.nna-leb.gov.lb/en/rss
               - name: Annahar
                 url: https://www.annahar.com/rss
+              - name: NNA
+                url: https://www.nna-leb.gov.lb/en/rss
           - name: Syria
             sources:
               - name: SANA
-                url: https://sana.sy/en/?feed=rss2
+                url: https://sana.sy/feed/
               - name: Syria Direct
                 url: https://syriadirect.org/feed/
               - name: Enab Baladi
                 url: https://english.enabbaladi.net/feed/
           - name: Jordan
             sources:
+              - name: Roya News
+                url: https://royanews.tv/rss
               - name: Jordan News
                 url: https://www.jordannews.jo/rss
       - slug: gulf-states
@@ -711,18 +717,22 @@ continents:
         countries:
           - name: Saudi Arabia
             sources:
+              - name: Okaz
+                url: https://www.okaz.com.sa/rssFeed/0
               - name: Arab News
                 url: https://www.arabnews.com/rss.xml
               - name: Asharq Al-Awsat
                 url: https://english.aawsat.com/feed
           - name: United Arab Emirates
             sources:
-              - name: Khaleej Times
-                url: https://www.khaleejtimes.com/api/v1/collections/uae.rss
               - name: Gulf News
                 url: https://gulfnews.com/feed
+              - name: Khaleej Times
+                url: https://www.khaleejtimes.com/api/v1/collections/uae.rss
           - name: Qatar
             sources:
+              - name: Al Sharq
+                url: https://al-sharq.com/rss/latestNews
               - name: Doha News
                 url: https://dohanews.co/feed
           - name: Kuwait
@@ -733,6 +743,8 @@ continents:
             sources: []
           - name: Oman
             sources:
+              - name: Oman Daily
+                url: https://www.omandaily.om/rssFeed/0
               - name: Oman Observer
                 url: https://www.omanobserver.om/rssFeed/home-page
               - name: Times of Oman
@@ -742,12 +754,16 @@ continents:
         countries:
           - name: Iraq
             sources:
+              - name: Shafaq News
+                url: https://shafaq.com/rss/ar
               - name: Iraqi News
                 url: https://www.iraqinews.com/feed/
               - name: Iraq Business News
                 url: https://www.iraq-businessnews.com/feed
           - name: Iran
             sources:
+              - name: ISNA
+                url: https://www.isna.ir/rss
               - name: Tehran Times
                 url: https://www.tehrantimes.com/rss
               - name: Mehr News
@@ -784,6 +800,8 @@ continents:
             sources: []
           - name: Japan
             sources:
+              - name: Asahi Shimbun
+                url: https://www.asahi.com/rss/asahi/newsheadlines.rdf
               - name: Japan Times
                 url: https://www.japantimes.co.jp/news/feed/
               - name: Japan Today
@@ -792,12 +810,16 @@ continents:
             sources: []
           - name: South Korea
             sources:
+              - name: Yonhap
+                url: https://www.yna.co.kr/rss/news.xml
               - name: Korea Herald
                 url: https://www.koreaherald.com/rss/newsAll
               - name: Korea Times
                 url: https://www.koreatimes.co.kr/www/rss/world.xml
           - name: Taiwan
             sources:
+              - name: Liberty Times
+                url: https://news.ltn.com.tw/rss/all.xml
               - name: Taipei Times
                 url: https://www.taipeitimes.com/xml/index.rss
       - slug: southeast-asia
@@ -805,14 +827,16 @@ continents:
         countries:
           - name: Philippines
             sources:
+              - name: Inquirer
+                url: https://www.inquirer.net/fullfeed/
               - name: Philstar
-                url: https://www.philstar.com/rss/world
+                url: https://www.philstar.com/rss/headlines
               - name: Rappler
                 url: https://www.rappler.com/feed/
           - name: Vietnam
             sources:
-              - name: VnExpress International
-                url: https://e.vnexpress.net/rss/news.rss
+              - name: VnExpress
+                url: https://vnexpress.net/rss/tin-moi-nhat.rss
               - name: Tuoi Tre News
                 url: https://tuoitrenews.vn/rss
           - name: Laos
@@ -827,16 +851,20 @@ continents:
                 url: https://www.phnompenhpost.com/rss
           - name: Thailand
             sources:
+              - name: Thairath
+                url: https://www.thairath.co.th/rss/news
               - name: Bangkok Post
                 url: https://www.bangkokpost.com/rss/data/topstories.xml
               - name: Khaosod English
                 url: https://www.khaosodenglish.com/feed/
           - name: Myanmar
             sources:
-              - name: The Irrawaddy
-                url: https://www.irrawaddy.com/feed
+              - name: The Irrawaddy (Burmese)
+                url: https://burma.irrawaddy.com/feed
           - name: Malaysia
             sources:
+              - name: Sinar Harian
+                url: https://www.sinarharian.com.my/rssFeed/0
               - name: Malay Mail
                 url: https://www.malaymail.com/feed/rss
               - name: Free Malaysia Today
@@ -849,6 +877,8 @@ continents:
                 url: https://mothership.sg/feed/
           - name: Indonesia
             sources:
+              - name: detikNews
+                url: https://news.detik.com/rss
               - name: Antara News
                 url: https://en.antaranews.com/rss/news.xml
       - slug: south-asia
@@ -856,10 +886,12 @@ continents:
         countries:
           - name: Bangladesh
             sources:
-              - name: Prothom Alo English
-                url: https://en.prothomalo.com/feed
+              - name: Prothom Alo
+                url: https://www.prothomalo.com/stories.rss
           - name: India
             sources:
+              - name: The Times of India
+                url: https://timesofindia.indiatimes.com/rssfeedstopstories.cms
               - name: The Hindu
                 url: https://www.thehindu.com/news/national/feeder/default.rss
               - name: The Indian Express
@@ -872,12 +904,16 @@ continents:
                 url: https://tribune.com.pk/feed/home
           - name: Sri Lanka
             sources:
+              - name: Lankadeepa
+                url: https://www.lankadeepa.lk/rss/latest_news/1
               - name: Daily Mirror
                 url: https://www.dailymirror.lk/rss/breaking_news/108
               - name: Ada Derana
                 url: https://www.adaderana.lk/rss.php
           - name: Nepal
             sources:
+              - name: Onlinekhabar
+                url: https://www.onlinekhabar.com/feed
               - name: Kathmandu Post
                 url: https://kathmandupost.com/rss
           - name: Afghanistan
@@ -891,12 +927,14 @@ continents:
         countries:
           - name: Kazakhstan
             sources:
+              - name: Tengrinews
+                url: https://tengrinews.kz/news.rss
               - name: Astana Times
                 url: https://astanatimes.com/feed/
           - name: Uzbekistan
             sources:
               - name: Kun.uz
-                url: https://kun.uz/news/rss?lang=en
+                url: https://kun.uz/news/rss
       - slug: oceania
         name: Oceania
         countries:
@@ -908,10 +946,10 @@ continents:
                 url: https://www.smh.com.au/rss/feed.xml
           - name: New Zealand
             sources:
-              - name: RNZ
-                url: https://www.rnz.co.nz/rss/news.xml
               - name: NZ Herald
                 url: https://www.nzherald.co.nz/arc/outboundfeeds/rss/section/nz/?outputType=xml&_website=nzh
+              - name: RNZ
+                url: https://www.rnz.co.nz/rss/news.xml
           - name: Papua New Guinea
             sources:
               - name: Post-Courier
