@@ -401,7 +401,7 @@ def _localize_shell(page, lang, pref):
         n = str(COUNTRY_COUNT)
         for old, new in [
             ('<html lang="en">', f'<html lang="{lang}"{dir_attr}>'),
-            (f'placeholder="🔍 Search {n} countries… ( / )"',
+            (f'placeholder="🔍 Search {n} countries and stories… ( / )"',
              'placeholder="' + html.escape(T("search_ph", n=n), quote=True) + '"'),
             ('class="updated">loading…</span>',
              'class="updated">' + html.escape(T("loading")) + "</span>"),

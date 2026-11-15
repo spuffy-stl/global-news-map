@@ -77,7 +77,7 @@ COUNTRY_LANG = {
 
 STRINGS = {
     "en": {
-        "search_ph": "🔍 Search {n} countries… ( / )",
+        "search_ph": "🔍 Search {n} countries and stories… ( / )",
         "loading": "loading…",
         "hook_title": "See what the world is reading today.",
         "hook_body": "Tap a glowing marker to read headlines from local outlets in {n} countries.",
@@ -116,7 +116,7 @@ STRINGS = {
         "cont.asia-pacific": "Asia-Pacific",
     },
     "es": {
-        "search_ph": "🔍 Buscar en {n} países… ( / )",
+        "search_ph": "🔍 Buscar en {n} países y noticias… ( / )",
         "loading": "cargando…",
         "hook_title": "Mira lo que el mundo está leyendo hoy.",
         "hook_body": "Toca un marcador luminoso para leer titulares de medios locales de {n} países.",
@@ -154,7 +154,7 @@ STRINGS = {
         "cont.asia-pacific": "Asia-Pacífico",
     },
     "fr": {
-        "search_ph": "🔍 Rechercher parmi {n} pays… ( / )",
+        "search_ph": "🔍 Rechercher parmi {n} pays et articles… ( / )",
         "loading": "chargement…",
         "hook_title": "Découvrez ce que le monde lit aujourd’hui.",
         "hook_body": "Touchez un marqueur lumineux pour lire les titres des médias locaux de {n} pays.",
@@ -192,7 +192,7 @@ STRINGS = {
         "cont.asia-pacific": "Asie-Pacifique",
     },
     "de": {
-        "search_ph": "🔍 {n} Länder durchsuchen… ( / )",
+        "search_ph": "🔍 {n} Länder und Artikel durchsuchen… ( / )",
         "loading": "wird geladen…",
         "hook_title": "Sieh, was die Welt heute liest.",
         "hook_body": "Tippe auf eine leuchtende Markierung, um Schlagzeilen lokaler Medien aus {n} Ländern zu lesen.",
@@ -230,7 +230,7 @@ STRINGS = {
         "cont.asia-pacific": "Asien-Pazifik",
     },
     "pt": {
-        "search_ph": "🔍 Pesquisar {n} países… ( / )",
+        "search_ph": "🔍 Pesquisar {n} países e notícias… ( / )",
         "loading": "carregando…",
         "hook_title": "Veja o que o mundo está lendo hoje.",
         "hook_body": "Toque em um marcador brilhante para ler manchetes de veículos locais de {n} países.",
@@ -268,7 +268,7 @@ STRINGS = {
         "cont.asia-pacific": "Ásia-Pacífico",
     },
     "it": {
-        "search_ph": "🔍 Cerca tra {n} paesi… ( / )",
+        "search_ph": "🔍 Cerca tra {n} paesi e notizie… ( / )",
         "loading": "caricamento…",
         "hook_title": "Scopri cosa legge il mondo oggi.",
         "hook_body": "Tocca un indicatore luminoso per leggere i titoli dei media locali di {n} paesi.",
@@ -306,7 +306,7 @@ STRINGS = {
         "cont.asia-pacific": "Asia-Pacifico",
     },
     "ar": {
-        "search_ph": "🔍 ابحث في {n} دولة… ( / )",
+        "search_ph": "🔍 ابحث في الأخبار و{n} دولة… ( / )",
         "loading": "جارٍ التحميل…",
         "hook_title": "اكتشف ما يقرؤه العالم اليوم.",
         "hook_body": "اضغط على علامة مضيئة لقراءة عناوين وسائل الإعلام المحلية في {n} دولة.",
@@ -344,7 +344,7 @@ STRINGS = {
         "cont.asia-pacific": "آسيا والمحيط الهادئ",
     },
     "ru": {
-        "search_ph": "🔍 Поиск по {n} странам… ( / )",
+        "search_ph": "🔍 Поиск по {n} странам и новостям… ( / )",
         "loading": "загрузка…",
         "hook_title": "Узнайте, что сегодня читает мир.",
         "hook_body": "Нажмите на светящийся маркер, чтобы читать заголовки местных СМИ из {n} стран.",
@@ -382,7 +382,7 @@ STRINGS = {
         "cont.asia-pacific": "Азиатско-Тихоокеанский регион",
     },
     "zh": {
-        "search_ph": "🔍 搜索 {n} 个国家… ( / )",
+        "search_ph": "🔍 搜索 {n} 个国家和新闻… ( / )",
         "loading": "加载中…",
         "hook_title": "看看今天全世界在读什么。",
         "hook_body": "点击发光的标记，阅读 {n} 个国家本地媒体的头条新闻。",
@@ -420,7 +420,7 @@ STRINGS = {
         "cont.asia-pacific": "亚太地区",
     },
     "ja": {
-        "search_ph": "🔍 {n}か国を検索… ( / )",
+        "search_ph": "🔍 {n}か国とニュースを検索… ( / )",
         "loading": "読み込み中…",
         "hook_title": "今日、世界が読んでいるニュースを見てみよう。",
         "hook_body": "光るマーカーをタップすると、{n}か国の地元メディアの見出しを読めます。",
@@ -458,7 +458,7 @@ STRINGS = {
         "cont.asia-pacific": "アジア太平洋",
     },
     "hi": {
-        "search_ph": "🔍 {n} देशों में खोजें… ( / )",
+        "search_ph": "🔍 {n} देशों और ख़बरों में खोजें… ( / )",
         "loading": "लोड हो रहा है…",
         "hook_title": "देखिए आज दुनिया क्या पढ़ रही है।",
         "hook_body": "{n} देशों के स्थानीय समाचार माध्यमों की सुर्खियाँ पढ़ने के लिए किसी चमकते मार्कर पर टैप करें।",
@@ -496,7 +496,7 @@ STRINGS = {
         "cont.asia-pacific": "एशिया-प्रशांत",
     },
     "tr": {
-        "search_ph": "🔍 {n} ülkede ara… ( / )",
+        "search_ph": "🔍 {n} ülkede ve haberlerde ara… ( / )",
         "loading": "yükleniyor…",
         "hook_title": "Dünyanın bugün ne okuduğunu görün.",
         "hook_body": "{n} ülkedeki yerel yayın organlarının manşetlerini okumak için parlayan bir işarete dokunun.",
