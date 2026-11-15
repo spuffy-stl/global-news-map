@@ -567,6 +567,76 @@ def _popular_countries_footer(n=20):
     )
 
 
+TRENDING_N = 8
+TRENDING_DAYS = 7
+_TRENDING_TTL_S = 600
+_trending_cache = {"at": 0.0, "items": None}
+_trending_lock = threading.Lock()
+
+
+def _trending_countries(n=TRENDING_N):
+    """Top-n countries for the homepage trending strip (SMA-835), as
+    (slug, admin, label, stories, sessions) tuples.
+
+    Ranked by distinct sessions that selected the country in the last
+    TRENDING_DAYS days (bot-free session log, sessions.country_engagement),
+    ties broken by fresh story count; remaining slots fill from the
+    story-count ranking the popular-countries footer uses (SMA-550), so the
+    strip is full even when the log is thin, empty or unreadable. Only
+    countries with fresh stories are eligible (SMA-692 coverage rule).
+    Cached for _TRENDING_TTL_S so first paint never waits on the ranking
+    queries."""
+    now = time.monotonic()
+    with _trending_lock:
+        cached = _trending_cache["items"]
+        if cached is not None and now - _trending_cache["at"] < _TRENDING_TTL_S:
+            return cached[:n]
+    try:
+        counts = db.get_country_counts()
+    except Exception:
+        log.exception("trending strip: db unavailable")
+        return []
+    try:
+        engaged = sessions.country_engagement(TRENDING_DAYS)
+    except Exception:
+        log.exception("trending strip: session log unavailable; story-count fallback")
+        engaged = {}
+    ranked = []
+    for slug, country in _SLUG_TO_COUNTRY.items():
+        admin = country["name"]
+        stories = counts.get(admin, 0)
+        if stories > 0:
+            ranked.append((engaged.get(admin, 0), stories, slug, admin, _country_label(country)))
+    ranked.sort(key=lambda r: (-r[0], -r[1], r[2]))
+    items = [(slug, admin, label, stories, s) for s, stories, slug, admin, label in ranked[:TRENDING_N]]
+    with _trending_lock:
+        _trending_cache["at"] = now
+        _trending_cache["items"] = items
+    return items[:n]
+
+
+def _trending_strip(lang=i18n.DEFAULT_LANG):
+    """Server-rendered trending-countries strip at the top of the homepage's
+    map column (SMA-835): visible in the first viewport on desktop and
+    mobile, real <a> links to /country/<slug>. app.js intercepts clicks to
+    switch views in place and fires trending_click; without JS (or before
+    the map is ready) the links navigate normally."""
+    items = _trending_countries()
+    if not items:
+        return ""
+    links = "".join(
+        f'<li><a href="/country/{slug}" data-country="{html.escape(admin, quote=True)}" '
+        f'data-rank="{rank}" title="{html.escape(i18n.t(lang, "stories", n=stories), quote=True)}">'
+        f'{html.escape(label)}<span class="ts-count">{stories}</span></a></li>'
+        for rank, (slug, admin, label, stories, _s) in enumerate(items, start=1)
+    )
+    return (
+        '<nav id="trendingStrip" class="trending-strip" aria-labelledby="trendingLabel">'
+        f'<span id="trendingLabel" class="ts-label">{html.escape(i18n.t(lang, "trending_countries"))}</span>'
+        f"<ul>{links}</ul></nav>"
+    )
+
+
 @app.get("/")
 def index(request: Request):
     # SMA-665: the homepage was a pure JS shell (6,851 bytes, zero story
@@ -607,18 +677,24 @@ def index(request: Request):
     if items:
         panel_meta = i18n.t(lang, "newest", t=_rel_time(
             items[0].get("published_at") or items[0].get("fetched_at"), lang))
-    return _html(
-        _app_page(
-            body_suffix=_popular_countries_footer(),
-            head_extra=_newsarticle_jsonld(items),
-            panel_title=i18n.t(lang, "top_now"),
-            panel_meta=panel_meta,
-            stories_html=stories_html,
-            lang=lang,
-            lang_pref=request.cookies.get(i18n.COOKIE_NAME),
-        ),
-        lang,
+    page = _app_page(
+        body_suffix=_popular_countries_footer(),
+        head_extra=_newsarticle_jsonld(items),
+        panel_title=i18n.t(lang, "top_now"),
+        panel_meta=panel_meta,
+        stories_html=stories_html,
+        lang=lang,
+        lang_pref=request.cookies.get(i18n.COOKIE_NAME),
     )
+    # SMA-835: homepage starts reached a selection 0/6 times in the session
+    # log while country-page starts engaged in nearly every session — give
+    # the front door country destinations above the map.
+    page = page.replace(
+        '<section class="map-col">',
+        '<section class="map-col">\n    ' + _trending_strip(lang),
+        1,
+    )
+    return _html(page, lang)
 
 
 @app.get("/sitemap.xml")

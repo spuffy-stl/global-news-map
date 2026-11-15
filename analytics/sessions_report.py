@@ -27,6 +27,7 @@ STAGES = [
     "hook_explore",
     "select_any",
     "select_country",
+    "trending_click",
     "search_any",
     "stories_shown",
     "click_story",

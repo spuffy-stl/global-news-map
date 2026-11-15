@@ -86,6 +86,7 @@ STRINGS = {
         "zoom_tip": "Tip: scroll or pinch to zoom — regions appear, then country-level stories.",
         "top_stories": "Top stories",
         "top_now": "Top stories right now",
+        "trending_countries": "🔥 Trending countries",
         "share": "↗ Share",
         "copied": "✓ Copied",
         "select_hint": "Select a region on the map to see its top headlines.",

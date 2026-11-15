@@ -259,6 +259,23 @@
     if (typeof searchInput !== "undefined" && searchInput) searchInput.focus();
   });
 
+  // SMA-835: server-rendered trending-countries strip (homepage only).
+  // trending_click measures strip use; when the map is ready the view
+  // switches in place (selectCountry also fires select_country), otherwise
+  // — or on a modified/middle click — the real /country/<slug> link
+  // navigates and the deep-link boot fires select_country there.
+  var trendingStrip = document.getElementById("trendingStrip");
+  if (trendingStrip) trendingStrip.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest ? e.target.closest("a[data-country]") : null;
+    if (!a || !trendingStrip.contains(a)) return;
+    var admin = a.getAttribute("data-country");
+    trackEvent("trending_click", { country: admin, value: a.getAttribute("data-rank") || "" });
+    if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if (!continents.length || !mapZoom || !findCountry(admin)) return;
+    e.preventDefault();
+    selectCountry(admin, true);
+  });
+
   var continents = [];
   var active = { continent: null, region: null, country: null }; // slugs / ADMIN
   var panelLevel = "world"; // SMA-566: level of the stories currently rendered
@@ -812,6 +829,12 @@
       .classed("active", function (d) { return d.region.slug === active.region && !active.country; });
     svg.selectAll("g.kmarker")
       .classed("active", function (d) { return d.country.name === active.country; });
+    if (trendingStrip) {
+      var tsLinks = trendingStrip.querySelectorAll("a[data-country]");
+      for (var i = 0; i < tsLinks.length; i++) {
+        tsLinks[i].classList.toggle("active", tsLinks[i].getAttribute("data-country") === active.country);
+      }
+    }
     drawNav();
   }
 
