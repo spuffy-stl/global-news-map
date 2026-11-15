@@ -54,6 +54,7 @@ EVENTS = frozenset({
     "hook_shown", "hook_explore", "hook_dismiss",
     "return_visit", "return_badge_click",
     "reset_zoom",
+    "trending_click",  # SMA-835: homepage trending-countries strip
 })
 
 # Allowed prop keys -> max string length. Anything else is dropped.
@@ -178,12 +179,41 @@ STAGES = [
     ("hook_explore", ("hook_explore",)),
     ("select_any", ("select_continent", "select_region", "select_country")),
     ("select_country", ("select_country",)),
+    ("trending_click", ("trending_click",)),
     ("search_any", ("search_country", "search_story", "search_no_results")),
     ("stories_shown", ("stories_shown",)),
     ("click_story", ("click_story",)),
     ("share_country", ("share_country",)),
     ("session_end", ("session_end",)),
 ]
+
+
+def country_engagement(days=7):
+    """SMA-835: country ADMIN name -> number of distinct sessions that
+    selected it (select_country) in the last `days` days. The session log
+    is JS-only, so this is the bot-free engagement signal; counting
+    sessions rather than events keeps one busy tab from dominating.
+    (click_story carries no country prop, so selection is the signal.)"""
+    cutoff = int((time.time() - days * 86400) * 1000)
+    with _lock:
+        conn = _connect()
+        try:
+            rows = conn.execute(
+                "SELECT session_id, props FROM session_events"
+                " WHERE event = 'select_country' AND ts >= ?",
+                (cutoff,),
+            ).fetchall()
+        finally:
+            conn.close()
+    seen = {}
+    for r in rows:
+        try:
+            country = json.loads(r["props"] or "{}").get("country")
+        except ValueError:
+            continue
+        if country:
+            seen.setdefault(country, set()).add(r["session_id"])
+    return {country: len(sids) for country, sids in seen.items()}
 
 
 def get_sessions(limit=25):
