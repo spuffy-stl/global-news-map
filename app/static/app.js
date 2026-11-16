@@ -952,6 +952,25 @@
     }
   }
 
+  // SMA-849: the homepage world list was a dead end — 50 bot-free homepage
+  // sessions, 1 select (2%), 0 story clicks; visitors read the headlines in
+  // place and left. One next step at the end of the world list only: a
+  // button to the top story's country. Built from the items already
+  // fetched (no extra request); world_list_cta_click measures it and the
+  // selectCountry() it triggers fires select_country as a map tap would.
+  function worldListEndHTML(items) {
+    var pick = "";
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].country) { pick = items[i].country; break; }
+    }
+    if (!pick) return "";
+    return '<div class="list-end">' +
+      '<p class="list-end-prompt">' + esc(tr("list_end_prompt", "Pick a country on the map to see its local headlines.")) + "</p>" +
+      '<button type="button" class="list-end-cta" data-list-end-country="' + esc(pick) + '">' +
+      esc(tr("list_end_cta", "See local headlines from {country}", { country: pick })) + " →</button>" +
+      "</div>";
+  }
+
   function loadWorldHeadlines() {
     // First-visit hook: show the freshest stories immediately so a new visitor
     // sees value without having to click anything (SMA-367), and every visit
@@ -969,6 +988,7 @@
         renderStories("world", tr("top_now", "Top stories right now"),
           items.length ? tr("newest", "newest {t}", { t: relTime(items[0].published_at || items[0].fetched_at) }) : "",
           items, hint);
+        storiesEl.insertAdjacentHTML("beforeend", worldListEndHTML(items));
       })
       .catch(function () {
         storiesEl.innerHTML = '<p class="hint">' + esc(tr("load_failed", "Could not load headlines. Please try again.")) + "</p>";
@@ -1127,6 +1147,24 @@
       via: "card",
     }, { story: link.href });
     window.open(link.href, "_blank", "noopener");
+  });
+
+  // SMA-849: world list-end CTA. With the map ready the view switches in
+  // place and the panel returns to the top of the new country list;
+  // otherwise the real /country/<slug> page loads — never a dead click.
+  storiesEl.addEventListener("click", function (e) {
+    var b = e.target && e.target.closest ? e.target.closest("[data-list-end-country]") : null;
+    if (!b || !storiesEl.contains(b)) return;
+    var admin = b.getAttribute("data-list-end-country");
+    trackEvent("world_list_cta_click", { country: admin });
+    if (!continents.length || !mapZoom || !findCountry(admin)) {
+      window.location.href = "/country/" + countrySlug(admin);
+      return;
+    }
+    selectCountry(admin, true);
+    var panel = document.getElementById("panel");
+    panel.scrollTop = 0;
+    if (window.innerWidth <= 900) panel.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   var worldFeatures = [];

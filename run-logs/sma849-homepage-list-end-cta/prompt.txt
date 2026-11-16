@@ -1,0 +1,4 @@
+You are implementing Linear issue SMA-849 in the spuffy-stl/global-news-map repo.
+Read the brief at run-logs/sma849-homepage-list-end-cta/brief.md in this worktree and follow it exactly.
+Work in this worktree on branch cc/sma849-homepage-list-end-cta (create it from develop).
+Open a PR to main when done. Do NOT merge. Report exactly what failed and stop if any step fails.

@@ -55,6 +55,7 @@ EVENTS = frozenset({
     "return_visit", "return_badge_click",
     "reset_zoom",
     "trending_click",  # SMA-835: homepage trending-countries strip
+    "world_list_cta_click",  # SMA-849: end of the homepage world list
 })
 
 # Allowed prop keys -> max string length. Anything else is dropped.
@@ -180,6 +181,7 @@ STAGES = [
     ("select_any", ("select_continent", "select_region", "select_country")),
     ("select_country", ("select_country",)),
     ("trending_click", ("trending_click",)),
+    ("world_list_cta_click", ("world_list_cta_click",)),
     ("search_any", ("search_country", "search_story", "search_no_results")),
     ("stories_shown", ("stories_shown",)),
     ("click_story", ("click_story",)),
