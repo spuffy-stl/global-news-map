@@ -28,6 +28,7 @@ STAGES = [
     "select_any",
     "select_country",
     "trending_click",
+    "world_list_cta_click",
     "search_any",
     "stories_shown",
     "click_story",
