@@ -94,11 +94,23 @@ def main():
         }},
     })
     # SMA-400: device + traffic-source visibility so mobile-UX and SEO-source
-    # decisions stop being guesses.
+    # decisions stop being guesses. SMA-850: + engagedSessions, so the loop can
+    # tell whether mobile visitors engage worse than desktop.
     devices = run_report(token, pid, {
         "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
         "dimensions": [{"name": "deviceCategory"}],
-        "metrics": [{"name": "activeUsers"}, {"name": "sessions"}],
+        "metrics": [{"name": "activeUsers"}, {"name": "sessions"},
+                    {"name": "engagedSessions"}],
+    })
+    # SMA-850: click_story per device — does the small-screen panel convert?
+    device_clicks = run_report(token, pid, {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "deviceCategory"}],
+        "metrics": [{"name": "eventCount"}],
+        "dimensionFilter": {"filter": {
+            "fieldName": "eventName",
+            "stringFilter": {"value": "click_story"},
+        }},
     })
     channels = run_report(token, pid, {
         "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
@@ -144,8 +156,15 @@ def main():
         lines.append(f"- {ev}: {seen.get(ev, '0')}")
     lines.append("")
     lines.append("Device category (last 7 days):")
+    clicks = {dims[0]: int(vals[0]) for dims, vals in rows(device_clicks)}
     for dims, vals in sorted(rows(devices)):
-        lines.append(f"- {dims[0]}: {vals[0]} users, {vals[1]} sessions")
+        sess, engaged = int(vals[1]), int(vals[2])
+        rate = f"{engaged / sess:.0%}" if sess else "n/a"
+        n_clicks = clicks.get(dims[0], 0)
+        per_sess = f"{n_clicks / sess:.2f}" if sess else "n/a"
+        lines.append(f"- {dims[0]}: {vals[0]} users, {vals[1]} sessions, "
+                     f"{engaged} engaged ({rate} engagement rate), "
+                     f"{n_clicks} click_story ({per_sess}/session)")
     lines.append("")
     lines.append("Traffic source, default channel group (last 7 days):")
     chan_rows = sorted(rows(channels), key=lambda r: int(r[1][0]), reverse=True)
