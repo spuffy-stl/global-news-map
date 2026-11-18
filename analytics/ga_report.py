@@ -127,6 +127,23 @@ def main():
         "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}],
         "limit": 10,
     })
+    # SMA-814: country x channel engagement, so a 0-engagement cell (e.g. the
+    # Nov 8-9 China · Direct wave) is visible at a glance. Falls back to
+    # country-only if the API rejects the combination.
+    geo_body = {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "country"}, {"name": "sessionDefaultChannelGroup"}],
+        "metrics": [{"name": "sessions"}, {"name": "engagedSessions"}],
+        "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}],
+        "limit": 12,
+    }
+    geo_fallback = None
+    try:
+        geo = run_report(token, pid, geo_body)
+    except RuntimeError as e:
+        geo_fallback = str(e)
+        geo_body["dimensions"] = [{"name": "country"}]
+        geo = run_report(token, pid, geo_body)
 
     days = rows(daily)
     tot = [0, 0, 0, 0]
@@ -174,6 +191,18 @@ def main():
     lines.append("Top landing pages by channel (last 7 days):")
     for dims, vals in rows(landing):
         lines.append(f"- {dims[0]} · {dims[1]}: {vals[0]} sessions, {vals[1]} engaged")
+    lines.append("")
+    if geo_fallback:
+        lines.append("Top countries (last 7 days; country x channel rejected: "
+                     f"{geo_fallback[:120]}):")
+    else:
+        lines.append("Top countries by channel (last 7 days):")
+    for dims, vals in rows(geo):
+        sess, engaged = int(vals[0]), int(vals[1])
+        rate = f"{engaged / sess:.0%}" if sess else "n/a"
+        label = " · ".join(dims)
+        lines.append(f"- {label}: {sess} sessions, {engaged} engaged "
+                     f"({rate} engagement rate)")
 
     # SMA-543: Search Console snapshot — indexed-page count (cached, refreshed
     # by analytics/sc_snapshot.py) + top queries, alongside the GA numbers.
