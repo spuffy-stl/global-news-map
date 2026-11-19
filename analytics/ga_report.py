@@ -144,6 +144,22 @@ def main():
         geo_fallback = str(e)
         geo_body["dimensions"] = [{"name": "country"}]
         geo = run_report(token, pid, geo_body)
+    # SMA-863: device x channel engagement, so a desktop-vs-mobile gap can be
+    # read as bot mix (Direct/Unassigned) vs a real UX gap without a one-off
+    # query. Falls back to device-only if the API rejects the combination.
+    devchan_body = {
+        "dateRanges": [{"startDate": "7daysAgo", "endDate": "yesterday"}],
+        "dimensions": [{"name": "deviceCategory"}, {"name": "sessionDefaultChannelGroup"}],
+        "metrics": [{"name": "sessions"}, {"name": "engagedSessions"}],
+        "orderBys": [{"metric": {"metricName": "sessions"}, "desc": True}],
+    }
+    devchan_fallback = None
+    try:
+        devchan = run_report(token, pid, devchan_body)
+    except RuntimeError as e:
+        devchan_fallback = str(e)
+        devchan_body["dimensions"] = [{"name": "deviceCategory"}]
+        devchan = run_report(token, pid, devchan_body)
 
     days = rows(daily)
     tot = [0, 0, 0, 0]
@@ -182,6 +198,19 @@ def main():
         lines.append(f"- {dims[0]}: {vals[0]} users, {vals[1]} sessions, "
                      f"{engaged} engaged ({rate} engagement rate), "
                      f"{n_clicks} click_story ({per_sess}/session)")
+    lines.append("")
+    if devchan_fallback:
+        lines.append("Device engagement (last 7 days; device x channel rejected: "
+                     f"{devchan_fallback[:120]}):")
+    else:
+        lines.append("Device by channel (last 7 days):")
+    # Group by device, then sessions desc within each device.
+    for dims, vals in sorted(rows(devchan), key=lambda r: (r[0][0], -int(r[1][0]))):
+        sess, engaged = int(vals[0]), int(vals[1])
+        rate = f"{engaged / sess:.0%}" if sess else "n/a"
+        label = " · ".join(dims)
+        lines.append(f"- {label}: {sess} sessions, {engaged} engaged "
+                     f"({rate} engagement rate)")
     lines.append("")
     lines.append("Traffic source, default channel group (last 7 days):")
     chan_rows = sorted(rows(channels), key=lambda r: int(r[1][0]), reverse=True)
