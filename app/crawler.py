@@ -174,11 +174,13 @@ def crawl_all(continents=None):
     for country in touched:
         db.prune_country(country)
     if config.TRANSLATION_ENABLED:
-        # SMA-829: keep the translation cache bounded by the headline table.
+        # SMA-862: age-only eviction (TRANSLATION_CACHE_TTL_DAYS). Pruned
+        # headlines keep their translations so re-surfacing stories are free.
         try:
             dropped = db.prune_translations()
             if dropped:
-                log.info("pruned %d cached translations of removed headlines", dropped)
+                log.info("evicted %d cached translations past the %d-day TTL",
+                         dropped, db.TRANSLATION_CACHE_TTL_DAYS)
         except Exception:
             log.exception("translation cache prune failed")
     purged = db.purge_unknown_continents({c["slug"] for c in config.CONTINENTS})
