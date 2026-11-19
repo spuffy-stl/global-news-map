@@ -108,6 +108,15 @@ Environment variables:
 | `AZURE_TRANSLATOR_KEY` / `AZURE_TRANSLATOR_REGION` / `GOOGLE_TRANSLATE_API_KEY` | *(empty)* | Provider credentials. A missing key fails closed (originals served). |
 | `TRANSLATION_MONTHLY_CHAR_BUDGET` | `2000000` | Hard monthly ceiling on characters sent to the provider; once reached, originals are served until the UTC month rolls over. Month-to-date usage shows in `/api/status` → `translation`. |
 
+Translation cache (SMA-862): each headline is sent to the provider at most
+once per language. Cached translations outlive the headline (crawl pruning
+never deletes them) and are evicted only after `db.TRANSLATION_CACHE_TTL_DAYS`
+(365). Lookups match the exact title first, then the same story URL with a
+cosmetic retitle (case/punctuation, or an edge-only "LIVE:" / "- Outlet" edit
+with no number changed; anything else is re-translated, see
+`i18n.is_material_retitle`). Tests (offline, dev provider only):
+`python -m unittest discover -s tests -t .`
+
 ## Run with Docker
 
 ```bash

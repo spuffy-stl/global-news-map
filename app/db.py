@@ -84,6 +84,13 @@ CREATE TABLE IF NOT EXISTS failed_searches (
 # each outlet's detected language so, e.g., English outlets are never sent
 # to the provider for English readers. translation_usage is the monthly
 # character counter behind the spend ceiling. No visitor data in any table.
+#
+# SMA-862: the cache is independent of the headline lifecycle — pruning a
+# headline never deletes its translation (the old prune_translations did,
+# so feeds that re-surface pruned stories were paid for on every crawl).
+# story_url (normalized) + title_norm give a second lookup key so a
+# retitled story still hits the cache (rule: i18n.is_material_retitle).
+# Eviction is by age only: see TRANSLATION_CACHE_TTL_DAYS.
 TRANSLATION_SCHEMA = """
 CREATE TABLE IF NOT EXISTS headline_translations (
     title_hash TEXT NOT NULL,
@@ -91,6 +98,8 @@ CREATE TABLE IF NOT EXISTS headline_translations (
     translated TEXT NOT NULL,
     source_lang TEXT,
     created_at TEXT NOT NULL,
+    story_url TEXT,
+    title_norm TEXT,
     PRIMARY KEY (title_hash, lang)
 );
 CREATE TABLE IF NOT EXISTS source_languages (
@@ -207,6 +216,7 @@ def init_db():
             conn.executescript(FEED_HEALTH_SCHEMA)
             conn.executescript(FAILED_SEARCH_SCHEMA)
             conn.executescript(TRANSLATION_SCHEMA)
+            _migrate_translations(conn)
             conn.commit()
         finally:
             conn.close()
@@ -749,8 +759,58 @@ def get_translations(hashes, lang):
             conn.close()
 
 
+def get_translations_by_url(urls, lang):
+    """SMA-862: normalized story URL -> [(title_norm, translated,
+    source_lang)] cached for lang, newest first. The caller decides which
+    (if any) is close enough to the current title to reuse."""
+    urls = [u for u in set(urls) if u]
+    if not urls:
+        return {}
+    with _lock:
+        conn = _connect()
+        try:
+            marks = ",".join("?" * len(urls))
+            cur = conn.execute(
+                "SELECT story_url, title_norm, translated, source_lang"
+                " FROM headline_translations"
+                " WHERE lang = ? AND story_url IN ({})"
+                " ORDER BY created_at DESC".format(marks),
+                [lang, *urls],
+            )
+            out = {}
+            for r in cur:
+                out.setdefault(r["story_url"], []).append(
+                    (r["title_norm"] or "", r["translated"], r["source_lang"]))
+            return out
+        finally:
+            conn.close()
+
+
+def get_known_source_langs(hashes):
+    """SMA-862: title_hash -> source language already detected for that
+    exact title while translating it into ANY language. Lets a title known
+    to be, e.g., English skip the provider for English readers."""
+    hashes = list(set(hashes))
+    if not hashes:
+        return {}
+    with _lock:
+        conn = _connect()
+        try:
+            marks = ",".join("?" * len(hashes))
+            cur = conn.execute(
+                "SELECT title_hash, source_lang FROM headline_translations"
+                " WHERE source_lang IS NOT NULL AND source_lang != ''"
+                " AND title_hash IN ({})".format(marks),
+                hashes,
+            )
+            return {r["title_hash"]: r["source_lang"] for r in cur}
+        finally:
+            conn.close()
+
+
 def put_translations(rows, lang):
-    """rows: [(title_hash, translated, source_lang)]. First write wins."""
+    """rows: [(title_hash, translated, source_lang, story_url, title_norm)].
+    First write wins. story_url/title_norm may be None (no URL known)."""
     if not rows:
         return
     now = utcnow_iso()
@@ -759,9 +819,10 @@ def put_translations(rows, lang):
         try:
             conn.executemany(
                 "INSERT OR IGNORE INTO headline_translations"
-                " (title_hash, lang, translated, source_lang, created_at)"
-                " VALUES (?, ?, ?, ?, ?)",
-                [(h, lang, t, s, now) for h, t, s in rows],
+                " (title_hash, lang, translated, source_lang, created_at,"
+                "  story_url, title_norm)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                [(h, lang, t, s, now, u, n) for h, t, s, u, n in rows],
             )
             conn.commit()
         finally:
@@ -839,26 +900,63 @@ def add_translation_usage(month, chars):
             conn.close()
 
 
-def prune_translations():
-    """Drop cached translations whose original title is no longer stored
-    (pruned/purged headlines), so the cache stays bounded by the headline
-    table. Returns rows deleted."""
+# SMA-862: cached translations are kept for this long, then evicted by age.
+# Never tied to headline pruning. A year is far beyond the freshness window
+# (FRESH_HOURS / FALLBACK_DAYS), so a live story is never evicted while it
+# is being served; at ~200 bytes a row the cache stays a few MB even at
+# tens of thousands of translations.
+TRANSLATION_CACHE_TTL_DAYS = 365
+
+
+def prune_translations(ttl_days=TRANSLATION_CACHE_TTL_DAYS):
+    """Evict cached translations older than ttl_days (by created_at).
+    Deliberately independent of the headlines table: a pruned headline's
+    translation stays cached so a re-surfacing story costs nothing.
+    Returns rows deleted."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=ttl_days)).isoformat()
     with _lock:
         conn = _connect()
         try:
-            live = {title_hash(r["title"]) for r in conn.execute("SELECT title FROM headlines")}
-            stale = [
-                (r["title_hash"],)
-                for r in conn.execute("SELECT DISTINCT title_hash FROM headline_translations")
-                if r["title_hash"] not in live
-            ]
-            conn.executemany(
-                "DELETE FROM headline_translations WHERE title_hash = ?", stale
+            cur = conn.execute(
+                "DELETE FROM headline_translations WHERE created_at < ?", (cutoff,)
             )
             conn.commit()
-            return len(stale)
+            return cur.rowcount
         finally:
             conn.close()
+
+
+def _migrate_translations(conn):
+    """SMA-862: add story_url/title_norm to pre-existing caches and backfill
+    them from headlines still stored (matched by title hash). Rows whose
+    headline is already gone keep working through the title-hash key."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(headline_translations)")}
+    if "story_url" not in cols:
+        conn.execute("ALTER TABLE headline_translations ADD COLUMN story_url TEXT")
+    if "title_norm" not in cols:
+        conn.execute("ALTER TABLE headline_translations ADD COLUMN title_norm TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_translations_url "
+        "ON headline_translations(story_url, lang)"
+    )
+    missing = {
+        r["title_hash"] for r in conn.execute(
+            "SELECT DISTINCT title_hash FROM headline_translations"
+            " WHERE story_url IS NULL"
+        )
+    }
+    if not missing:
+        return
+    found = {}
+    for r in conn.execute("SELECT title, url FROM headlines ORDER BY fetched_at DESC"):
+        h = title_hash(r["title"])
+        if h in missing and h not in found:
+            found[h] = (r["url"], normalize_title(r["title"] or ""))
+    conn.executemany(
+        "UPDATE headline_translations SET story_url = ?, title_norm = ?"
+        " WHERE title_hash = ? AND story_url IS NULL",
+        [(u, n, h) for h, (u, n) in found.items()],
+    )
 
 
 # --- Feed health (SMA-692) ---------------------------------------------------

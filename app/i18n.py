@@ -14,7 +14,13 @@ monthly character counter.
 Lazy translation: a headline is translated only when a visitor asks for a
 language it is not yet cached in. Translations are keyed by a hash of the
 original title (db.headline_translations), so each headline is translated at
-most once per language, ever. Each outlet's detected language is memoised
+most once per language, ever. SMA-862: the cache outlives the headline (crawl
+pruning never deletes a translation; eviction is age-only, see
+db.TRANSLATION_CACHE_TTL_DAYS), and a second key — the normalized story URL —
+lets a lightly retitled story reuse its translation (rule:
+is_material_retitle). A title already detected as the reader's language while
+translating it into another language skips the provider too. Each outlet's
+detected language is memoised
 (db.source_languages); once an outlet is confidently known to publish in the
 reader's language its headlines are never sent to the provider. A monthly
 character ceiling (TRANSLATION_MONTHLY_CHAR_BUDGET) caps spend — once reached,
@@ -22,6 +28,7 @@ uncached headlines are served in the original language until the month
 rolls over.
 """
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -29,6 +36,7 @@ from datetime import datetime, timezone
 import requests
 
 from . import config, db
+from .textclean import normalize_title, normalize_url
 
 log = logging.getLogger("global-news-map.i18n")
 
@@ -738,13 +746,13 @@ def _call_provider(texts, lang):
 
 
 def _translate_missing(pending, lang):
-    """pending: {title_hash: (title, source)} not yet cached for lang.
-    Translates what the budget allows, caches it, memoises outlet
-    languages. Returns {title_hash: (translated, source_lang)}."""
+    """pending: {title_hash: (title, source, story_url, title_norm)} not yet
+    cached for lang. Translates what the budget allows, caches it, memoises
+    outlet languages. Returns {title_hash: (translated, source_lang)}."""
     with _translate_lock:
         # Another request may have filled these while we waited.
         cached = db.get_translations(pending.keys(), lang)
-        todo = [(h, title, src) for h, (title, src) in pending.items() if h not in cached]
+        todo = [(h, *v) for h, v in pending.items() if h not in cached]
         if not todo:
             return cached
         # Spend ceiling: translate only what still fits this month.
@@ -761,14 +769,14 @@ def _translate_missing(pending, lang):
         todo = fit
         if not todo:
             return cached
-        results = _call_provider([title for _, title, _ in todo], lang)
+        results = _call_provider([row[1] for row in todo], lang)
         if not results:
             return cached
         rows, detections = [], []
-        for (h, title, src), (translated, detected) in zip(todo, results):
+        for (h, title, src, url, norm), (translated, detected) in zip(todo, results):
             if detected == lang:
                 translated = title  # already in the reader's language
-            rows.append((h, translated, detected))
+            rows.append((h, translated, detected, url, norm))
             cached[h] = (translated, detected)
             if detected:
                 detections.append((src, detected))
@@ -781,6 +789,44 @@ def _translate_missing(pending, lang):
 # before its headlines skip the provider for readers of that language.
 SOURCE_CONFIDENCE = 3
 
+# SMA-862 retitle rule. A story (same normalized URL) whose title changed
+# reuses its cached translation only when the edit is cosmetic:
+#   - same title after normalize_title (case, punctuation, whitespace), or
+#   - an edge-only edit: the shorter title appears intact and contiguous in
+#     the longer one (a "LIVE:" / "UPDATE" prefix, a "- Outlet" suffix),
+#     covering at least RETITLE_MIN_SHARED of the longer title's words,
+#     and no number changed.
+# Anything else is material and re-translated: any mid-title word change
+# (e.g. "will" -> "will not"), any changed number (casualty counts, scores,
+# dates), or a larger added/removed clause. The original title is always
+# shown under its translation, so a reused translation never hides the
+# current wording.
+RETITLE_MIN_SHARED = 0.6
+_DIGIT_RE = re.compile(r"\d")
+
+
+def is_material_retitle(old_norm, new_norm):
+    """True when new_norm differs from old_norm (both normalize_title keys)
+    enough to need a fresh translation. See the rule above."""
+    if old_norm == new_norm:
+        return False
+    a, b = old_norm.split(), new_norm.split()
+    if not a or not b:
+        return True
+    nums = lambda ws: sorted(w for w in ws if _DIGIT_RE.search(w))
+    if nums(a) != nums(b):
+        return True
+    short, longer = (a, b) if len(a) <= len(b) else (b, a)
+    n = len(short)
+    if not any(longer[i:i + n] == short for i in range(len(longer) - n + 1)):
+        return True
+    return n / len(longer) < RETITLE_MIN_SHARED
+
+
+def _story_key(it):
+    url = it.get("url")
+    return normalize_url(url) if url else None
+
 
 def localize(items, lang):
     """Return items with title_translated / title_lang added where a
@@ -791,17 +837,40 @@ def localize(items, lang):
     try:
         hashes = [db.title_hash(it.get("title") or "") for it in items]
         cached = db.get_translations(hashes, lang)
-        langs = db.get_source_languages(it.get("source") for it in items)
-        pending = {}
-        for h, it in zip(hashes, items):
-            if h in cached or not (it.get("title") or "").strip():
-                continue
-            src_lang, agree = langs.get(it.get("source"), (None, 0))
-            if src_lang == lang and agree >= SOURCE_CONFIDENCE:
-                continue  # memoised: this outlet already writes in lang
-            pending[h] = (it["title"], it.get("source"))
-        if pending:
-            cached.update(_translate_missing(pending, lang))
+        misses = [(h, it) for h, it in zip(hashes, items)
+                  if h not in cached and (it.get("title") or "").strip()]
+        if misses:
+            # Second key: same story URL, cosmetically retitled.
+            by_url = db.get_translations_by_url(
+                (_story_key(it) for _, it in misses), lang)
+            known = db.get_known_source_langs(h for h, _ in misses)
+            already, still = [], []
+            for h, it in misses:
+                norm = normalize_title(it["title"])
+                for old_norm, translated, src_lang in by_url.get(_story_key(it), ()):
+                    if not is_material_retitle(old_norm, norm):
+                        # A same-language original must show the new title.
+                        cached[h] = ((it["title"], src_lang) if src_lang == lang
+                                     else (translated, src_lang))
+                        break
+                else:
+                    if known.get(h) == lang:
+                        # Detected as lang while translating it elsewhere:
+                        # nothing to translate. Cache it (zero chars spent).
+                        cached[h] = (it["title"], lang)
+                        already.append((h, it["title"], lang, _story_key(it), norm))
+                    else:
+                        still.append((h, it, norm))
+            db.put_translations(already, lang)
+            langs = db.get_source_languages(it.get("source") for _, it, _ in still)
+            pending = {}
+            for h, it, norm in still:
+                src_lang, agree = langs.get(it.get("source"), (None, 0))
+                if src_lang == lang and agree >= SOURCE_CONFIDENCE:
+                    continue  # memoised: this outlet already writes in lang
+                pending[h] = (it["title"], it.get("source"), _story_key(it), norm)
+            if pending:
+                cached.update(_translate_missing(pending, lang))
     except Exception:
         log.exception("headline localization failed; serving originals")
         return items
