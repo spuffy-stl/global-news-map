@@ -179,6 +179,8 @@
         hookTeaser.setAttribute("tabindex", "0");
         hookTeaser.title = "See stories from " + s.country;
         hookTeaser.classList.remove("hidden");
+        // SMA-867: lead with the headline — demote the generic copy (CSS).
+        if (welcomeHook) welcomeHook.classList.add("has-teaser");
         return;
       }
     }
