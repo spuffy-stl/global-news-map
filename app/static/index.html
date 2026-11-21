@@ -42,9 +42,11 @@
     <!-- SMA-561: first-visit landing hook — one-line value prop + one obvious
          first interaction for cold visitors. Shown only on the world view for
          first-time visitors (JS unhides it); hidden for everyone else. -->
+    <!-- SMA-867: the live teaser headline leads the banner once it resolves;
+         the generic value prop below drops to one small secondary line. -->
     <div id="welcomeHook" class="hook-banner hidden" role="region" aria-label="Welcome">
-      <p><strong>See what the world is reading today.</strong> Tap a glowing marker to read headlines from local outlets in __COUNTRY_COUNT__ countries.</p>
       <p id="hookTeaser" class="hook-teaser hidden"></p>
+      <p><strong>See what the world is reading today.</strong> Tap a glowing marker to read headlines from local outlets in __COUNTRY_COUNT__ countries.</p>
       <div class="hook-actions">
         <button id="hookExplore" class="btn hook-cta" type="button">🌍 Take me to a trending country</button>
         <button id="hookSearch" class="btn ghost" type="button">🔍 Find a country</button>
