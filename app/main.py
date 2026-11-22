@@ -117,12 +117,16 @@ def _country_nav(slug):
             + '<span class="crumb-sep">·</span>'.join(neighbor_links)
             + "</span>"
         )
+    # SMA-866: the region crumb is a real link to /region/<slug>. It was a
+    # plain <span>, so region pages had almost no internal links (only the
+    # neighbouring region's pager) — /region/caribbean ranked for
+    # "caribbean news" with none of its 5 country pages linking to it.
     return (
         '<nav class="country-nav" aria-label="Country navigation">'
         '<span class="breadcrumb">'
         '<a class="crumb" href="/">🌐 World</a>'
         '<span class="crumb-sep">›</span>'
-        f'<span class="crumb current">{html.escape(region["name"])}</span>'
+        f'<a class="crumb" href="/region/{region["slug"]}">{html.escape(region["name"])}</a>'
         '<span class="crumb-sep">›</span>'
         f'<span class="crumb current">{html.escape(_country_label(country))}</span>'
         "</span>"
@@ -1174,9 +1178,17 @@ def region_page(slug: str, request: Request):
     source_word = "outlet" if n_sources == 1 else "outlets"
     # SMA-550: query-shaped title, mirroring the /country/<slug> pages.
     title = f"{region_name} News — Today's Headlines on the News Map"
+    # SMA-866: the snippet read "…across 5 countries in Caribbean" — broken
+    # grammar for region names that need "the" (Caribbean, Nordics, Levant,
+    # Gulf States) and no hint of which countries are covered. Lead with
+    # "<Region> news" (the query) and name the countries instead.
+    names = [_country_label(c) for c in countries]
+    if len(names) > 5:
+        names = names[:4] + [f"{len(names) - 4} more countries"]
+    where = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
     description = (
-        f"Today's top headlines from {n_sources} local news {source_word} "
-        f"across {n_countries} countries in {region_name}, updated every 6 hours by the Global News Map."
+        f"Today's top {region_name} news from {n_sources} local {source_word} "
+        f"in {where}, updated every 6 hours by the Global News Map."
     )
     lang = _request_lang(request)
     items = db.get_headlines("region", slug, 15)
