@@ -373,7 +373,14 @@ continents:
             sources:
               - name: Nasha Niva
                 url: https://nashaniva.com/?c=rss-all
-              # SMA-702: prod IP has been getting 403 from nashaniva.com (both editions).
+              # SMA-702: prod IP has been getting 403 from nashaniva.com (both editions),
+              # so Belarus had no working feed. Zerkalo (TUT.by's successor, the most-read
+              # independent Belarusian outlet) and Belsat (Belarusian-language TV) are
+              # exile-based but written for Belarusian readers; each is on a different host.
+              - name: Zerkalo
+                url: https://news.zerkalo.io/rss/news.rss
+              - name: Belsat
+                url: https://belsat.eu/rss
           - name: Moldova
             sources:
               - name: Unimedia
@@ -415,6 +422,9 @@ continents:
             sources:
               - name: Report.az
                 url: https://report.az/rss
+              # SMA-702: report.az 403s the prod IP and was Azerbaijan's only feed.
+              - name: AzerNews
+                url: https://www.azernews.az/feed.php
               # All in-country media are government-aligned; independent Meydan TV feed is stale.
   - slug: africa
     name: Africa
@@ -681,7 +691,8 @@ continents:
               - name: Jerusalem Post
                 url: https://www.jpost.com/rss/rssfeedsfrontpage.aspx
               - name: Times of Israel
-                url: https://www.timesofisrael.com/feed/
+                # SMA-702: www.timesofisrael.com 403s the prod IP; same feed via the publisher's FeedBurner.
+                url: https://feeds.feedburner.com/TheTimesOfIsrael
               - name: Arutz Sheva
                 url: https://www.israelnationalnews.com/Rss.aspx?act=.1
           - name: Palestine
@@ -895,7 +906,8 @@ continents:
               - name: The Hindu
                 url: https://www.thehindu.com/news/national/feeder/default.rss
               - name: The Indian Express
-                url: https://indianexpress.com/feed/
+                # SMA-702: indianexpress.com 403s the prod IP; publisher's FeedBurner India section feed.
+                url: https://feeds.feedburner.com/indianexpress/india
           - name: Pakistan
             sources:
               - name: Dawn
@@ -909,7 +921,8 @@ continents:
               - name: Daily Mirror
                 url: https://www.dailymirror.lk/rss/breaking_news/108
               - name: Ada Derana
-                url: https://www.adaderana.lk/rss.php
+                # SMA-702: adaderana.lk 403s the prod IP; publisher's FeedBurner feed (English featured news).
+                url: https://feeds.feedburner.com/adaderana
           - name: Nepal
             sources:
               - name: Onlinekhabar
