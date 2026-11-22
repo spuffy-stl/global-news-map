@@ -378,7 +378,7 @@ continents:
               # independent Belarusian outlet) and Belsat (Belarusian-language TV) are
               # exile-based but written for Belarusian readers; each is on a different host.
               - name: Zerkalo
-                url: https://news.zerkalo.io/rss/life.rss
+                url: https://news.zerkalo.io/rss/news.rss
               - name: Belsat
                 url: https://belsat.eu/rss
           - name: Moldova
