@@ -128,7 +128,8 @@ continents:
               - name: La Tercera
                 url: https://latercera.com/rss
               - name: BioBioChile
-                url: https://feeds.feedburner.com/radiobiobio/NNeJ
+                # SMA-883: the FeedBurner feed froze 2026-11-11; same feed from the publisher's own site.
+                url: https://www.biobiochile.cl/static/feed-rss
           - name: Peru
             sources:
               - name: El Comercio
@@ -583,8 +584,11 @@ continents:
                 url: https://eyeradio.org/feed/
           - name: Ethiopia
             sources:
-              - name: The Reporter Ethiopia
-                url: https://www.thereporterethiopia.com/feed/
+              # SMA-883: The Reporter (English and Amharic editions) has published
+              # nothing since 2026-11-02 (its own WordPress API agrees), so it was
+              # replaced by Fana (FBC), Ethiopia's largest broadcaster.
+              - name: Fana (FBC)
+                url: https://www.fanamc.com/english/feed/
               - name: Addis Fortune
                 url: https://addisfortune.news/feed
           - name: Somalia
