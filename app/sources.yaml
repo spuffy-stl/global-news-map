@@ -74,8 +74,14 @@ continents:
                 url: https://www.elfinancierocr.com/rss
           - name: Panama
             sources:
-              - name: La Prensa
-                url: https://www.prensa.com/arc/outboundfeeds/rss/?outputType=xml
+              # SMA-888: prensa.com 403s the prod IP since 2026-11-16 (and blocks even
+              # robots.txt off-VM, so no current La Prensa feed URL could be found);
+              # La Prensa was Panama's only feed. TVN (leading national TV news, feed
+              # advertised on its homepage) and Panamá América are on different hosts.
+              - name: TVN Panamá
+                url: https://www.tvn-2.com/rss/
+              - name: Panamá América
+                url: https://www.panamaamerica.com.pa/rss.xml
       - slug: caribbean
         name: Caribbean
         countries:
