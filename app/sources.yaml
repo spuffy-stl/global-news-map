@@ -866,8 +866,12 @@ continents:
                 url: https://laotiantimes.com/feed
           - name: Cambodia
             sources:
-              - name: Khmer Times
-                url: https://www.khmertimeskh.com/feed/
+              # SMA-890: khmertimeskh.com 403s the prod IP (Cloudflare "Just a moment"
+              # bot challenge on every path, incl. /feed/, ?feed=rss2, /feed/atom/), so
+              # no working Khmer Times feed URL exists. DAP News (major Khmer-language
+              # national news site, not behind Cloudflare) replaces it.
+              - name: DAP News
+                url: https://dap-news.com/feed/
               - name: Phnom Penh Post
                 url: https://www.phnompenhpost.com/rss
           - name: Thailand
