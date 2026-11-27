@@ -1339,7 +1339,14 @@
       }).join("");
     }
     if (stories.length) {
-      html += '<li class="search-group">Stories</li>' + stories.map(function (e) {
+      // SMA-893: the server falls back to nearest matches when no headline
+      // holds every word; say so instead of passing them off as exact.
+      var near = stories[0].story.match === "near";
+      html += (near
+        ? '<li class="search-empty">No exact match for <strong>' +
+          esc((rawQuery || "").trim()) + "</strong> — here are the closest stories.</li>" +
+          '<li class="search-group">Closest stories</li>'
+        : '<li class="search-group">Stories</li>') + stories.map(function (e) {
         var s = e.story, i = searchEntries.indexOf(e);
         var meta = [s.country, s.source].filter(Boolean).join(" · ");
         var when = s.published_at ? relTime(s.published_at) : "";
@@ -1403,6 +1410,16 @@
           .then(function (stories) {
             if (seq !== searchFetchSeq) return;  // query moved on
             stories = (stories || []).slice(0, 6);
+            // SMA-893: near-match fallbacks are still a dead end for GA.
+            var exact = stories.length && stories[0].match !== "near";
+            if (!exact && !searchMatches.length) {
+              // SMA-599: fire once per distinct query so GA can separate
+              // "never tried" from "tried and failed".
+              if (lastNoResultQuery !== query) {
+                lastNoResultQuery = query;
+                trackEvent("search_no_results", { query: query.slice(0, 40) });
+              }
+            }
             if (stories.length) {
               searchEntries = searchEntries.concat(stories.map(function (s) {
                 return { type: "story", story: s };
@@ -1410,12 +1427,6 @@
               searchSel = -1;
               paintSearchList(q);
             } else if (!searchMatches.length) {
-              // SMA-599: fire once per distinct query so GA can separate
-              // "never tried" from "tried and failed".
-              if (lastNoResultQuery !== query) {
-                lastNoResultQuery = query;
-                trackEvent("search_no_results", { query: query.slice(0, 40) });
-              }
               paintSearchList(q);
             }
           })
