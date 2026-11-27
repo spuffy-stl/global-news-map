@@ -783,6 +783,13 @@ continents:
                 url: https://www.iraq-businessnews.com/feed
           - name: Iran
             sources:
+              # SMA-891 (2026-11-27): ISNA, Tehran Times, Mehr and IRNA all time out
+              # from the prod VM but return 200 off-VM. All four are served from
+              # Iranian networks (ArvanCloud / Saba Abr, Tehran), en.mehrnews.com
+              # included, so the block follows server location, not the .ir TLD.
+              # Kept for when the block lifts. No usable mirror exists: Mehr's
+              # FeedBurner is frozen in 2018, and Tehran Times/IRNA/ISNA FeedBurner
+              # serve HTML (ArvanCloud block page for Tehran Times).
               - name: ISNA
                 url: https://www.isna.ir/rss
               - name: Tehran Times
@@ -797,6 +804,15 @@ continents:
               # (local-rule second clause) and its feed validates fresh.
               - name: Iran International
                 url: https://www.iranintl.com/en/feed
+              # SMA-891: Tehran-based replacements served from outside Iran.
+              # Press TV (state broadcaster) is on the Medianova CDN; presstv.ir/rss.xml
+              # redirects here. Tasnim's tasnimnews.ir apex round-robins between
+              # Sofia (BG) and Tehran IPs, so expect occasional prod timeouts.
+              # (www.tasnimnews.ir is Tehran-only; ifpnews.com has broken DNS.)
+              - name: Press TV
+                url: https://www.presstv.co.uk/rss.xml
+              - name: Tasnim News
+                url: https://tasnimnews.ir/en/rss/feed/0/0/0/0/AllStories
           - name: Yemen
             sources:
               - name: 26 September
