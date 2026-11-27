@@ -1386,11 +1386,13 @@ def search(q: str = Query("", max_length=80), limit: int = Query(8, ge=1, le=20)
     if len(q) < 2:
         return []
     results = db.search_headlines(q, limit)
-    if not results and not is_url_like(q):
+    exact = results and results[0].get("match") != "near"
+    if not exact and not is_url_like(q):
         # SMA-714: record the dead-end term for the daily-loop readout
         # (GA's search_no_results carries no readable query text).
         # SMA-795: URL-like queries are excluded — they are pastes, not
         # failed terms, and would pollute the aggregate.
+        # SMA-893: near-match fallbacks still count as dead ends.
         db.record_failed_search(q)
     lang = _api_lang(lang)
     return i18n.localize(results, lang) if lang else results

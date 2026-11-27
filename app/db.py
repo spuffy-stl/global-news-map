@@ -639,38 +639,106 @@ def get_status():
             conn.close()
 
 
-def search_headlines(query, limit=8):
-    """SMA-691: topic search over fresh headlines. Every query word (>=2
-    chars, max 5) must appear in the title or summary (LIKE on ~14k rows
-    is milliseconds; FTS5 would need a shadow table + triggers for the
-    same result set). Freshness follows the same predicate as panels."""
-    words = [w for w in (query or "").lower().split() if len(w) >= 2][:5]
-    if not words:
-        return []
-    clauses, params = [], []
-    for w in words:
-        esc = w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        clauses.append(
-            "(LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(summary) LIKE ? ESCAPE '\\')"
-        )
-        params.extend(["%" + esc + "%", "%" + esc + "%"])
+_NEAR_PREFIX_MIN = 4  # SMA-893: shortest prefix tried for an unmatched word
+
+
+def _search_stem(w):
+    """SMA-893: light plural folding so 'accidents' finds 'accident' and
+    'industries' finds 'industry'/'industrial' (substring match does the
+    rest). Leaves -ss/-us/-is words ('crisis', 'virus') alone."""
+    if len(w) >= 6 and w.endswith("ies"):
+        return w[:-3]
+    if len(w) >= 5 and w.endswith("s") and not w.endswith(("ss", "us", "is")):
+        return w[:-1]
+    return w
+
+
+def _like_clause(w):
+    esc = w.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return (
+        "(LOWER(title) LIKE ? ESCAPE '\\' OR LOWER(summary) LIKE ? ESCAPE '\\')",
+        ["%" + esc + "%", "%" + esc + "%"],
+    )
+
+
+def _fresh_search_rows(clauses, params, joiner, limit=None):
     cut_fresh, cut_fallback = _fresh_cutoffs()
     sql = (
         "SELECT continent, region, country, title, summary, url, source,"
         " published_at, fetched_at FROM headlines WHERE "
         + _FRESH_PREDICATE
-        + " AND "
-        + " AND ".join(clauses)
-        + " ORDER BY (published_at IS NULL) ASC,"
-          " COALESCE(published_at, fetched_at) DESC, id DESC LIMIT ?"
+        + " AND ("
+        + joiner.join(clauses)
+        + ") ORDER BY (published_at IS NULL) ASC,"
+          " COALESCE(published_at, fetched_at) DESC, id DESC"
+        + (" LIMIT ?" if limit else "")
     )
+    args = [cut_fresh, cut_fallback, cut_fresh, *params] + ([limit] if limit else [])
     with _lock:
         conn = _connect()
         try:
-            cur = conn.execute(sql, [cut_fresh, cut_fallback, cut_fresh, *params, limit])
-            return [dict(r) for r in cur.fetchall()]
+            return [dict(r) for r in conn.execute(sql, args).fetchall()]
         finally:
             conn.close()
+
+
+def search_headlines(query, limit=8):
+    """SMA-691: topic search over fresh headlines. Every query word (>=2
+    chars, max 5) must appear in the title or summary (LIKE on ~14k rows
+    is milliseconds; FTS5 would need a shadow table + triggers for the
+    same result set). Freshness follows the same predicate as panels.
+
+    SMA-893: when no headline holds every word, fall back to nearest
+    matches (marked match="near") instead of an empty list: rows holding
+    any word, ranked by how many words they hold, then by how rare those
+    words are; a word with no hits at all is retried as its longest
+    prefix that has some ('solarvest' -> 'solar')."""
+    words = [_search_stem(w) for w in (query or "").lower().split() if len(w) >= 2][:5]
+    if not words:
+        return []
+    clauses, params = [], []
+    for w in words:
+        c, p = _like_clause(w)
+        clauses.append(c)
+        params.extend(p)
+    exact = _fresh_search_rows(clauses, params, " AND ", limit)
+    if exact:
+        return exact
+    return _near_headlines(words, limit)
+
+
+def _near_headlines(words, limit):
+    # 2-char words ('us', 'uk') are substrings of almost every headline;
+    # they only help in the exact (AND) tier.
+    words = list(dict.fromkeys(w for w in words if len(w) >= 3))
+    if not words:
+        return []
+    # One fetch covers every candidate pattern: each word's shortest
+    # allowed prefix matches a superset of its longer forms.
+    clauses, params = [], []
+    for w in words:
+        c, p = _like_clause(w[:_NEAR_PREFIX_MIN] if len(w) > _NEAR_PREFIX_MIN else w)
+        clauses.append(c)
+        params.extend(p)
+    pool = _fresh_search_rows(clauses, params, " OR ")
+    hays = [((r.get("title") or "") + "\n" + (r.get("summary") or "")).lower()
+            for r in pool]
+    hits = []  # per word: set of pool indexes matching its chosen pattern
+    for w in words:
+        for n in range(len(w), min(len(w), _NEAR_PREFIX_MIN) - 1, -1):
+            found = {i for i, h in enumerate(hays) if w[:n] in h}
+            if found:
+                hits.append(found)
+                break
+    if not hits:
+        return []
+    scored = []
+    for i in set().union(*hits):
+        held = [s for s in hits if i in s]
+        # i is the pool's SQL recency order, so it breaks score ties.
+        scored.append((-len(held), -sum(1.0 / len(s) for s in held), i))
+    scored.sort()
+    return [dict(pool[i], match="near") for _, _, i in scored[:limit]]
 
 
 def get_country_counts():
