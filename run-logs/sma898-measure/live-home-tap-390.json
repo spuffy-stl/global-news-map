@@ -1,0 +1,38 @@
+{
+ "url": "https://globalnewsmap.net/",
+ "W": 390,
+ "H": 844,
+ "onLoad": {
+  "scrollY": 0,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 837,
+  "mapTopDoc": 367,
+  "mapH": 185,
+  "hookVisible": true,
+  "firstCardTopDoc": 1041,
+  "firstCardTopView": 1041,
+  "firstCardInView": false,
+  "scrollNeededToFirstCard": 277,
+  "title": "Top stories right now",
+  "events": []
+ },
+ "afterTap": {
+  "tapped": true,
+  "scrollY": 606,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 606,
+  "mapTopDoc": 194,
+  "mapH": 185,
+  "hookVisible": false,
+  "firstCardTopDoc": 746,
+  "firstCardTopView": 140,
+  "firstCardInView": true,
+  "scrollNeededToFirstCard": 0,
+  "title": "Cambodia",
+  "events": []
+ }
+}

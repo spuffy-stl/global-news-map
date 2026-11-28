@@ -935,7 +935,10 @@
     // hook and the map off-screen before the visitor saw either. Scroll
     // only when the render answers an explicit post-boot selection
     // (pendingPanelScroll, set by the select* functions / goWorld).
-    if (pendingPanelScroll && window.innerWidth <= 900) {
+    // SMA-898: a deep-link boot render ("deeplink") also scrolls, unless the
+    // visitor already scrolled the page themselves while it loaded.
+    if (pendingPanelScroll && window.innerWidth <= 900 &&
+        !(pendingPanelScroll === "deeplink" && window.scrollY > 0)) {
       document.getElementById("panel").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     pendingPanelScroll = false;
@@ -1000,6 +1003,7 @@
   // SMA-689: set by selectContinent/selectRegion/selectCountry/goWorld
   // when (and only when) they run for an explicit post-boot selection;
   // consumed by renderStories() to decide on the mobile panel scroll.
+  // SMA-898: boot routing sets it to "deeplink" for country/region landings.
   var pendingPanelScroll = false;
   function noteSelectionScroll() {
     pendingPanelScroll = navBooted && !restoringPop;
@@ -1602,11 +1606,21 @@
         });
       }
     }
-    if (initialCountry && findCountry(initialCountry)) selectCountry(initialCountry, true);
+    // SMA-898: on phones a deep-link landing (e.g. a shared /country/cambodia)
+    // left the first story at or below the fold under the nav, map and chips
+    // (390x844: card top at 835px; 360x640: 285px below), so visitors who came
+    // for that country's stories had to find them by scrolling. Deep-link
+    // boot renders now get the same mobile panel scroll as a post-boot
+    // selection. The world boot render (/) stays unscrolled (SMA-689).
+    if (initialCountry && findCountry(initialCountry)) {
+      selectCountry(initialCountry, true);
+      pendingPanelScroll = "deeplink";
+    }
     else if (initialRegion && findRegion(initialRegion[0], initialRegion[1])) {
       // SMA-688: selectRegion() now sets /region/<slug> itself (adopting
       // this deep-link entry via replaceState), so no restore call needed.
       selectRegion(initialRegion[0], initialRegion[1], true);
+      pendingPanelScroll = "deeplink";
     }
     else startWorldHeadlinesOnce();
     // SMA-688: boot routing adopted the landing history entry (navKey set

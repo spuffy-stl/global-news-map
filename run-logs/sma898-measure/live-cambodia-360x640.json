@@ -1,0 +1,21 @@
+{
+ "url": "https://globalnewsmap.net/country/cambodia",
+ "W": 360,
+ "H": 640,
+ "onLoad": {
+  "scrollY": 0,
+  "vh": 640,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 705,
+  "mapTopDoc": 283,
+  "mapH": 170,
+  "hookVisible": false,
+  "firstCardTopDoc": 845,
+  "firstCardTopView": 845,
+  "firstCardInView": false,
+  "scrollNeededToFirstCard": 285,
+  "title": "Cambodia",
+  "events": []
+ }
+}

@@ -1,0 +1,24 @@
+{
+ "url": "http://127.0.0.1:8012/",
+ "W": 390,
+ "H": 844,
+ "onLoad": {
+  "scrollY": 0,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 881,
+  "mapTopDoc": 412,
+  "mapH": 185,
+  "hookVisible": true,
+  "firstCardTopDoc": 1086,
+  "firstCardTopView": 1086,
+  "firstCardInView": false,
+  "scrollNeededToFirstCard": 322,
+  "title": "Top stories right now",
+  "events": [
+   "hook_shown",
+   "stories_shown"
+  ]
+ }
+}

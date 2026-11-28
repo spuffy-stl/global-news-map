@@ -1,0 +1,24 @@
+{
+ "url": "http://127.0.0.1:8012/country/serbia",
+ "W": 390,
+ "H": 844,
+ "onLoad": {
+  "scrollY": 755,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 755,
+  "mapTopDoc": 283,
+  "mapH": 185,
+  "hookVisible": false,
+  "firstCardTopDoc": 895,
+  "firstCardTopView": 140,
+  "firstCardInView": true,
+  "scrollNeededToFirstCard": 0,
+  "title": "Serbia",
+  "events": [
+   "select_country",
+   "stories_shown"
+  ]
+ }
+}

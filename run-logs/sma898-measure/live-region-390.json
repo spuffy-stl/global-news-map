@@ -1,0 +1,21 @@
+{
+ "url": "https://globalnewsmap.net/region/southeast-asia",
+ "W": 390,
+ "H": 844,
+ "onLoad": {
+  "scrollY": 0,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 624,
+  "mapTopDoc": 215,
+  "mapH": 185,
+  "hookVisible": false,
+  "firstCardTopDoc": 885,
+  "firstCardTopView": 885,
+  "firstCardInView": false,
+  "scrollNeededToFirstCard": 121,
+  "title": "Southeast Asia",
+  "events": []
+ }
+}
