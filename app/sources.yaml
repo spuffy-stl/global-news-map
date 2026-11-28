@@ -677,10 +677,21 @@ continents:
                 url: https://www.namibian.com.na/feed/
           - name: Botswana
             sources:
+              # SMA-906 (2026-11-28): Sunday Standard 403s from the prod VM since
+              # Nov 2, and off-VM too (www and apex, /feed/, /rss and category feeds,
+              # 403 or a dropped connection). No alternate URL found. Kept for when
+              # the block lifts.
               - name: Sunday Standard
                 url: https://www.sundaystandard.info/feed/
+              # The Gazette is a weekly; its feed goes quiet between issues.
               - name: The Gazette
                 url: https://www.thegazette.news/feed/
+              # SMA-906: daily-updating local sources. Botswana Daily News has no
+              # RSS, and Mmegi's /rssFeed/<section> feeds carry only ~1 item/week.
+              - name: Weekend Post
+                url: https://weekendpost.co.bw/feed/
+              - name: Botswana Youth Magazine
+                url: https://www.botswanayouth.com/feed/
           - name: eSwatini
             label: Eswatini
             sources:
