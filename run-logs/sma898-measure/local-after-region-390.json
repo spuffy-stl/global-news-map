@@ -1,0 +1,24 @@
+{
+ "url": "http://127.0.0.1:8012/region/southeast-europe",
+ "W": 390,
+ "H": 844,
+ "onLoad": {
+  "scrollY": 642,
+  "vh": 844,
+  "cards": 15,
+  "ssr": false,
+  "panelTopDoc": 642,
+  "mapTopDoc": 233,
+  "mapH": 185,
+  "hookVisible": false,
+  "firstCardTopDoc": 903,
+  "firstCardTopView": 261,
+  "firstCardInView": true,
+  "scrollNeededToFirstCard": 0,
+  "title": "Southeast Europe",
+  "events": [
+   "select_region",
+   "stories_shown"
+  ]
+ }
+}
